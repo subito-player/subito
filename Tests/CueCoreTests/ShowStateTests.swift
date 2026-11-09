@@ -285,6 +285,26 @@ extension ShowState {
         #expect(state.send(.playPause) == [.play(.a)])
     }
 
+    @Test func aLiveClipRunsCoveredOrNotUntilPausedOrEnded() {
+        #expect(!ShowState.loaded().liveClipRunning)
+        var state = ShowState.clip1LiveOnA()
+        #expect(state.liveClipRunning)
+        state.send(.toggleCover(.black))
+        #expect(state.liveClipRunning)
+        state.send(.playPause)
+        #expect(!state.liveClipRunning)
+        state.send(.playPause)
+        state.send(.liveEnded(.a))
+        #expect(!state.liveClipRunning)
+
+        var black = ShowState.clip1LiveOnA()
+        black.ready(.b, 2)
+        black.send(.go)
+        black.send(.go)
+        #expect(black.base == .black)
+        #expect(!black.liveClipRunning)
+    }
+
     @Test func seekingBackFromTheEndAllowsPlayAgain() {
         var state = ShowState.clip1LiveOnA()
         state.send(.liveEnded(.a))

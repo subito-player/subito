@@ -43,8 +43,10 @@ laptop panel. Files (folder names follow `app.env`):
 
 ## Clip formats
 
-Plays MP4 and MOV (H.264, HEVC, ProRes). MKV, WebM and most AVI files don't play (preflight marks them red); convert
-them first:
+Plays MP4 and MOV (H.264, HEVC, ProRes). MKV, WebM and most AVI files don't play (preflight marks them red). In
+rehearsal mode the preflight panel converts them (Konvertálás / Convert): a new `.mp4` next to the original, the
+original is never touched, and the show switches to the new file. Needs ffmpeg from Homebrew or Nix; not while a clip
+is running. By hand:
 
 ```sh
 nix shell nixpkgs#ffmpeg --command ffmpeg -i in.mkv -c copy out.mp4               # H.264 inside: seconds, lossless

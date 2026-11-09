@@ -239,6 +239,12 @@ struct Strings {
         case .cannotAddMovie(let file, nil):
             pick("A film nem adható hozzá: \(file) nem olvasható", "Cannot add the movie: \(file) cannot be read")
         case .concertAsMovie: pick("Koncert nem tehető filmként egy koncertbe", "A concert can't be added as a movie")
+        case .convertWhileRunning:
+            pick("Állítsd meg vagy GO feketére a konvertálás előtt", "Pause, or GO to black, before converting")
+        case .convertFailed(let file, let failure):
+            pick(
+                "A konvertálás nem sikerült: \(file): \(convertFailure(failure))",
+                "Conversion failed: \(file): \(convertFailure(failure))")
         }
     }
 
@@ -376,6 +382,43 @@ struct Strings {
 
     func everyClipPlays(_ count: Int) -> String {
         pick("Minden klip lejátszható (\(count))", "Every clip plays (\(count))")
+    }
+
+    var convert: String { pick("Konvertálás", "Convert") }
+    var convertAll: String { pick("Mind konvertálása", "Convert all") }
+    var cancel: String { pick("Mégse", "Cancel") }
+    var cancelAll: String { pick("Mind leállítása", "Cancel all") }
+    var convertNeedsFFmpeg: String {
+        pick("A konvertáláshoz ffmpeg kell (Homebrew vagy Nix)", "Converting needs ffmpeg (Homebrew or Nix)")
+    }
+
+    func converting(_ cue: String) -> String {
+        pick("Konvertálás: \(cue)…", "Converting \(cue)…")
+    }
+
+    func conversion(_ phase: Converter.Phase, downloads: Bool) -> String {
+        switch phase {
+        case .waiting:
+            return pick("Sorra vár", "Waiting")
+        case .preparing:
+            guard downloads else { return pick("Előkészítés…", "Preparing…") }
+            return pick(
+                "Előkészítés… (első alkalommal letölti az ffmpeget)", "Preparing… (the first run downloads ffmpeg)")
+        case .running(let step, let fraction):
+            let name = step == .remux ? pick("Átcsomagolás", "Repackaging") : pick("Újrakódolás", "Re-encoding")
+            return fraction.map { name + String(format: " %.0f%%", $0 * 100) } ?? name + "…"
+        }
+    }
+
+    func convertFailure(_ failure: Conversion.Failure) -> String {
+        switch failure {
+        case .cannotStart: pick("az ffmpeg nem indult el", "ffmpeg did not start")
+        case .ffmpegFailed: pick("az ffmpeg nem tudta átalakítani", "ffmpeg could not convert it")
+        case .stillNotPlayable: pick("az átalakított fájl sem játszható le", "the converted file does not play either")
+        case .cannotSave: pick("a klip mappájába nem menthető új fájl", "cannot save a new file in the clip's folder")
+        case .ffmpegMissing: pick("ffmpeg kell hozzá (Homebrew vagy Nix)", "it needs ffmpeg (Homebrew or Nix)")
+        case .diskFull: pick("nincs elég szabad hely a lemezen", "not enough free disk space")
+        }
     }
 
     func manual(_ check: ManualCheck) -> String {

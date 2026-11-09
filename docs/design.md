@@ -204,9 +204,12 @@ the app is dead the projector shows the desktop: checklist says "switch to backu
 Deliverables with code: `docs/operator-checklist.md` (HU+EN, one page), generated cheat sheet, `docs/rehearsal-test.md`
 (manual test script), first-run note for unsigned builds.
 
-**v0.2+:** converter (ffmpeg from Homebrew/Nix, hardware H.264, disabled while a clip is live), looping logos, logo
-fade, editor extras, bar numbers mapped to timestamps (park armed clip by bar), tablet remote, rehearsal timer,
-per-clip notes, Windows.
+**v0.2 (built):** `--check` headless preflight; logo fade; converter (ffmpeg from Homebrew/Nix, remux only for
+H.264/HEVC, else hardware H.264 transcode; rehearsal only, never while a clip is running; new file next to the
+original); looping logos.
+
+**Later:** editor extras, bar numbers mapped to timestamps (park armed clip by bar), phone status mirror / rehearsal
+remote, rehearsal timer, per-clip notes, Windows.
 
 ## To verify on hardware before Friday
 
