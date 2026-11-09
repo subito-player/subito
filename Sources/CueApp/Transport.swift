@@ -134,6 +134,8 @@ private struct KeyButton: View {
                     .minimumScaleFactor(0.6)
                 Text(key)
                     .font(.system(size: 13, design: .monospaced))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .foregroundStyle(style == .go ? Palette.goKey : Palette.dim)
             }
             .foregroundStyle(style == .plain ? Palette.fg : .white)

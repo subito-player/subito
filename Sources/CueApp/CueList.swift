@@ -8,7 +8,7 @@ struct CueList: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if model.canEdit, model.document != nil { header }
+            if model.state.mode == .rehearsal || (model.canEdit && model.document != nil) { header }
             list
             if model.editing {
                 Palette.line.frame(height: 1)
@@ -20,26 +20,37 @@ struct CueList: View {
     }
 
     private var header: some View {
-        HStack {
-            Spacer()
-            Button(action: model.toggleEditing) {
-                Text(model.strings.edit)
-                    .font(.system(size: 14, weight: .semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 3)
-                    .foregroundStyle(model.editing ? Color.white : Palette.fg)
-                    .background(model.editing ? Palette.confirm : Palette.raise, in: RoundedRectangle(cornerRadius: 5))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 5).strokeBorder(model.editing ? Palette.confirm : Palette.line)
-                    )
-                    .contentShape(Rectangle())
+        let s = model.strings
+        return HStack(spacing: 8) {
+            // Rehearsal only: an unlocked concert may edit its show but never swap it for another.
+            if model.state.mode == .rehearsal {
+                BarButton(text: s.open, action: pickers.openShow)
+                BarButton(text: s.newMovie, action: pickers.newMovie)
+                BarButton(text: s.newConcert, action: pickers.newConcert)
             }
-            .buttonStyle(.plain)
-            .focusable(false)
+            Spacer(minLength: 0)
+            if model.canEdit, model.document != nil { editToggle }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .overlay(alignment: .bottom) { Palette.line.frame(height: 1) }
+    }
+
+    private var editToggle: some View {
+        Button(action: model.toggleEditing) {
+            Text(model.strings.edit)
+                .font(.system(size: 14, weight: .semibold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 3)
+                .foregroundStyle(model.editing ? Color.white : Palette.fg)
+                .background(model.editing ? Palette.confirm : Palette.raise, in: RoundedRectangle(cornerRadius: 5))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5).strokeBorder(model.editing ? Palette.confirm : Palette.line)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
     }
 
     private var list: some View {
@@ -177,14 +188,18 @@ private struct ListDrop: DropDelegate {
 
     func performDrop(info: DropInfo) -> Bool {
         let model = model
-        let files = info.itemProviders(for: [.fileURL])
-        if !files.isEmpty {
+        let all = info.itemProviders(for: [.fileURL, .utf8PlainText])
+        let kind = DropKind.classify(all.map(\.registeredTypeIdentifiers))
+        Log.deferred("drop \(kind) on row \(target.map { "\($0.index)" } ?? "list")")
+        if kind == .files {
+            let files = all.filter { DropKind.classify([$0.registeredTypeIdentifiers]) == .files }
             Self.load(files) { urls in model.addClips(urls) }
             return true
         }
-        guard let target, let provider = info.itemProviders(for: [.utf8PlainText]).first else { return false }
-        _ = provider.loadObject(ofClass: NSString.self) { object, _ in
+        guard kind == .row, let target, let provider = all.first else { return false }
+        _ = provider.loadObject(ofClass: NSString.self) { object, error in
             let token = object as? String
+            if token == nil { Log.deferred("drop token unreadable: \(String(describing: error))") }
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     if let token { model.drop(token: token, onto: target) }
