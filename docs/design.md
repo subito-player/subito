@@ -79,7 +79,7 @@ disappears and the screen holds. Rendered content, not UI.
 | Key | Action | Key | Action |
 |---|---|---|---|
 | Enter, keypad Enter | GO | B | black cover on/off (instant cut, always) |
-| Space | play/pause live clip (also covered) | L / Shift+L | logo 1 / 2 cover on/off (instant v0.1, 0.5 s fade v0.2) |
+| Space | play/pause live clip (also covered) | L / Shift+L | logo 1 / 2 cover on/off (fades 0.5 s in and out; logo 1 <-> 2, BLACK and GO cut) |
 | Left/Right | seek live 5 s | Shift+Left/Right | seek live 30 s |
 | Opt+Left/Right | park armed 5 s | Opt+Shift+Left/Right | park armed 30 s |
 | Up/Down, keypad -/+ | arm previous/next item | 0 to 9 | arm clip with that number in current movie |
