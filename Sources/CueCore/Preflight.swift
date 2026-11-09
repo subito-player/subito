@@ -77,7 +77,7 @@ public enum Severity: Sendable {
 public struct Finding: Equatable, Sendable {
     public enum Kind: Equatable, Sendable {
         case fileMissing, notPlayable, noVideo, size, frameRate, length, plannedEnd
-        case logo
+        case logo, logoNumber
         case projector, mirrored, refreshRate, betterRefreshRate, power, spaces, sound
     }
 
@@ -130,14 +130,20 @@ public enum Preflight {
         return findings
     }
 
-    // A cue whose file was never probed counts as missing.
-    public static func evaluate(cues: [Cue], probes: [URL: ClipProbe]) -> [Finding] {
+    // A cue whose file was never probed counts as missing; a logo number the show lacks shows black.
+    public static func evaluate(cues: [Cue], probes: [URL: ClipProbe], logoCount: Int) -> [Finding] {
         cues.indices.flatMap { index -> [Finding] in
-            guard case .clip(let clip, let url) = cues[index].kind else { return [] }
-            return evaluate(clip: clip, probe: probes[url] ?? ClipProbe()).map { finding in
-                var finding = finding
-                finding.cueIndex = index
-                return finding
+            switch cues[index].kind {
+            case .clip(let clip, let url):
+                return evaluate(clip: clip, probe: probes[url] ?? ClipProbe()).map { finding in
+                    var finding = finding
+                    finding.cueIndex = index
+                    return finding
+                }
+            case .logo(let number) where number < 1 || number > logoCount:
+                return [Finding(severity: .warn, cueIndex: index, kind: .logoNumber, detail: "\(number)")]
+            default:
+                return []
             }
         }
     }

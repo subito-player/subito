@@ -68,6 +68,10 @@ struct ControlView: View {
             .overlay(alignment: .bottomLeading) {
                 if model.preflightOpen { PreflightPanel(model: model).padding(12) }
             }
+            // Trailing, so it stays clear of the preflight panel on the leading side.
+            .overlay(alignment: .topTrailing) {
+                if model.advanced.open { AdvancedPanel(model: model).padding(12) }
+            }
             StatusLine(model: model)
         }
         .font(.system(size: 15))
@@ -150,6 +154,22 @@ private struct BannerRow: View {
                 banner(s.confirmOutput(model.name(of: choice, s)), Palette.confirm)
             case .confirmDelete(let place)?:
                 banner(s.confirmDelete(name(of: place, s)), Palette.confirm)
+            case .confirm(.confirmQuitClick)?:
+                // The concert quit's last step is this click, never a key.
+                Button(action: model.confirmQuitByClick) {
+                    banner(s.notice(.confirmQuitClick), Palette.live)
+                        .overlay(alignment: .trailing) {
+                            Text(s.quitTarget)
+                                .font(.system(size: 16, weight: .heavy))
+                                .foregroundStyle(Palette.live)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 4)
+                                .background(.white, in: RoundedRectangle(cornerRadius: 6))
+                                .padding(.trailing, 16)
+                        }
+                }
+                .buttonStyle(.plain)
+                .focusable(false)
             case .confirm(let notice)?:
                 banner(s.notice(notice), Palette.confirm)
             case .noProjector?:
@@ -218,7 +238,7 @@ private struct StatusLine: View {
         }
         parts += model.problems.map { (s.problem($0), Palette.live) }
         for error in model.loadErrors where !error.warning {
-            parts.append((s.cannotPlay(cue(error.url), reason: error.message), Palette.live))
+            parts.append((s.cannotPlay(cue(error.url), reason: s.loadFailure(error.failure)), Palette.live))
         }
         if model.blockedClipCount > 0 { parts.append((s.clipsCannotPlay(model.blockedClipCount), Palette.live)) }
         // A missing projector already has its own line below.

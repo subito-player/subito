@@ -12,6 +12,11 @@ enum AppInfo {
     static var version: String? {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
     }
+
+    static var supportDirectory: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(Bundle.main.bundleIdentifier ?? name, isDirectory: true)
+    }
 }
 
 @MainActor

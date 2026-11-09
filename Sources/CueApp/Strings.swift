@@ -2,9 +2,7 @@ import CoreGraphics
 import CueCore
 import Foundation
 
-enum Lang: String, CaseIterable {
-    case hu, en
-
+extension Lang {
     private static let savedKey = "language"
 
     static var saved: Lang {
@@ -19,6 +17,8 @@ enum Lang: String, CaseIterable {
 // Two columns per line: Hungarian, then English.
 struct Strings {
     let lang: Lang
+    // Texts naming a key read it from here, so a remapped key is named right.
+    var keyMap = KeyMap.standard
 
     private func pick(_ hu: String, _ en: String) -> String {
         lang == .hu ? hu : en
@@ -112,14 +112,28 @@ struct Strings {
         case .soundLockedInConcert:
             pick("Koncert módban a hang mindig ki van kapcsolva", "Sound is always off in concert mode")
         case .confirmUnmute:
-            pick("Nyomd meg újra az M-et a hang bekapcsolásához (3 mp)", "Press M again to turn sound on (3 s)")
+            pick(
+                "A hang bekapcsolásához nyomd meg újra: \(key(for: .command(.toggleMute))) (3 mp)",
+                "Press \(key(for: .command(.toggleMute))) again to turn sound on (3 s)")
         case .confirmMode(let mode):
             pick("Kattints újra: váltás \(name(mode)) módra (3 mp)", "Click again to switch to \(name(mode)) (3 s)")
         case .confirmUnlock:
             pick("Kattints újra a szerkesztés feloldásához (3 mp)", "Click again to unlock editing (3 s)")
         case .confirmQuit:
             pick("Nyomd meg újra a Cmd+Q-t a kilépéshez (3 mp)", "Press Cmd+Q again to quit (3 s)")
+        case .confirmQuitClick:
+            pick("Koncert: a kilépéshez kattints ide (5 mp)", "Concert: click here to quit (5 s)")
         }
+    }
+
+    var quitTarget: String { pick("KILÉPÉS", "QUIT") }
+
+    func key(_ chord: KeyChord) -> String {
+        chord.label(lang)
+    }
+
+    func key(for action: KeyAction) -> String {
+        keyMap.chords(for: action).first.map(key) ?? "-"
     }
 
     func name(_ mode: Mode) -> String {
@@ -182,6 +196,11 @@ struct Strings {
     var breakMinutes: String { pick("Perc", "Minutes") }
     var countdown: String { pick("Visszaszámlálás", "Countdown") }
     var logoNumber: String { pick("Logó", "Logo") }
+    var noLogos: String {
+        pick(
+            "Ennek a műsornak nincs logója (a koncert logos listája üres)",
+            "This show has no logos (the concert's logo list is empty)")
+    }
     var nothingToSet: String { pick("Nincs mit beállítani", "Nothing to set") }
 
     func editNotice(_ notice: EditNotice) -> String {
@@ -198,7 +217,10 @@ struct Strings {
         case .emptyTitle: pick("A cím nem lehet üres", "The title cannot be empty")
         case .invalidTime: pick("Érvénytelen idő, így írd: 3:25", "Invalid time, type it like 3:25")
         case .invalidMinutes: pick("Érvénytelen percszám", "Invalid number of minutes")
-        case .cannotAddMovie(let reason): pick("A film nem adható hozzá: \(reason)", "Cannot add the movie: \(reason)")
+        case .cannotAddMovie(_, let error?):
+            pick("A film nem adható hozzá: \(showError(error))", "Cannot add the movie: \(showError(error))")
+        case .cannotAddMovie(let file, nil):
+            pick("A film nem adható hozzá: \(file) nem olvasható", "Cannot add the movie: \(file) cannot be read")
         case .concertAsMovie: pick("Koncert nem tehető filmként egy koncertbe", "A concert can't be added as a movie")
         }
     }
@@ -249,10 +271,69 @@ struct Strings {
 
     func problem(_ problem: Problem) -> String {
         switch problem {
-        case .show(let reason): pick("A műsor nem nyitható meg: \(reason)", "Cannot open the show: \(reason)")
-        case .keyMap(let reason): pick("A billentyűkiosztás hibás: \(reason)", "The key map is broken: \(reason)")
+        case .show(_, let error?):
+            pick("A műsor nem nyitható meg: \(showError(error))", "Cannot open the show: \(showError(error))")
+        case .show(let file, nil):
+            pick("A műsor nem nyitható meg: \(file) nem olvasható", "Cannot open the show: \(file) cannot be read")
+        case .keyMap(let error):
+            pick(
+                "A billentyűkiosztás hibás, az alap billentyűk működnek: \(keyMapError(error))",
+                "The key map is broken, the default keys work: \(keyMapError(error))")
         case .save(let file, let reason):
             pick("Nem sikerült menteni: \(file): \(reason)", "Cannot save \(file): \(reason)")
+        }
+    }
+
+    func showError(_ error: ShowError) -> String {
+        switch error {
+        case .fileMissing(let url):
+            pick(
+                "\(url.lastPathComponent) hiányzik vagy nem olvasható",
+                "\(url.lastPathComponent) is missing or unreadable")
+        case .invalidJSON(let file, _):
+            pick("\(file.lastPathComponent) hibás, nem olvasható be", "\(file.lastPathComponent) is not valid")
+        case .unsupportedFormat(let file, let format):
+            pick(
+                "\(file.lastPathComponent) \(format). formátumú, ez a verzió csak a(z) \(currentFormat). formátumot olvassa",
+                "\(file.lastPathComponent) uses format \(format), this version reads format \(currentFormat)")
+        case .movieContainsMovie(let file):
+            pick(
+                "\(file.lastPathComponent) film, de egy másik filmet tartalmaz",
+                "\(file.lastPathComponent) is a movie but contains another movie")
+        case .concertHasClip(let file):
+            pick(
+                "\(file.lastPathComponent) koncert, de klip van benne; a klipek filmbe kerülnek",
+                "\(file.lastPathComponent) is a concert but contains a clip; clips go inside a movie")
+        case .movieFileMissing(let concert, let path):
+            pick(
+                "\(concert.lastPathComponent) a(z) \(path) filmre hivatkozik, ami nem létezik",
+                "\(concert.lastPathComponent) refers to \(path), which does not exist")
+        }
+    }
+
+    func keyMapError(_ error: KeyMapError) -> String {
+        switch error {
+        case .invalidJSON: pick("a keymap.json nem olvasható be", "keymap.json is not valid")
+        case .unreadable: pick("a keymap.json nem nyitható meg", "keymap.json cannot be read")
+        case .unsupportedFormat(let format):
+            pick(
+                "a keymap.json \(format). formátumú, ez a verzió csak a(z) \(KeyMap.format). formátumot olvassa",
+                "keymap.json uses format \(format), this version reads format \(KeyMap.format)")
+        case .unknownChord(let chord): pick("ismeretlen billentyű: \(chord)", "unknown key \(chord)")
+        case .unknownAction(let chord, let action):
+            pick("\(chord): ismeretlen művelet: \(action)", "\(chord) has an unknown action \(action)")
+        case .shiftedKey(let chord, let use):
+            pick(
+                "\(chord) csak Shifttel írható, ezt írd helyette: \(use)", "\(chord) needs Shift, write \(use) instead")
+        case .noGo: pick("nincs benne GO billentyű", "it has no key for GO")
+        }
+    }
+
+    func loadFailure(_ failure: LoadFailure) -> String {
+        switch failure {
+        case .cannotLoad: pick("a fájl nem tölthető be", "the file cannot be loaded")
+        case .playbackFailed: pick("a lejátszás megszakadt", "playback failed")
+        case .pictureUnconfirmed: pick("a kép nincs megerősítve", "picture not confirmed")
         }
     }
 
@@ -288,6 +369,10 @@ struct Strings {
         case (.plannedEnd, _): pick("A tervezett vég a klip vége után van", "Planned end is after the clip ends")
         case (.logo, _):
             pick("A logó nem tölthető be, helyette fekete lesz", "Logo cannot be loaded, shows black instead")
+        case (.logoNumber, _):
+            pick(
+                "Nincs ilyen sorszámú logó a műsorban, helyette fekete lesz",
+                "The show has no logo with this number, shows black instead")
         case (.projector, .ok): pick("Projektor csatlakoztatva", "Projector connected")
         case (.projector, _): pick("Nincs projektor", "No projector")
         case (.mirrored, _): mirroring
@@ -309,11 +394,50 @@ struct Strings {
         }
     }
 
+    // --- Advanced view ---
+    var advanced: String { pick("HALADÓ", "ADVANCED") }
+    var version: String { pick("Verzió", "Version") }
+    var memory: String { pick("Memória", "Memory") }
+    var cheatSheet: String { pick("Puskalap", "Cheat sheet") }
+    var openKeyMap: String { pick("Billentyűkiosztás megnyitása", "Open key map") }
+    var openLogFolder: String { pick("Naplómappa megnyitása", "Open log folder") }
+    var stressTest: String { pick("Stresszteszt", "Stress test") }
+    var switches: String { pick("váltás", "switches") }
+    var start: String { pick("Indítás", "Start") }
+    var stop: String { pick("Leállítás", "Stop") }
+    var stressRunning: String { pick("fut, bármelyik billentyű leállítja", "running, any key stops it") }
+    var stressDone: String { pick("kész", "done") }
+    var stressStopped: String { pick("leállítva", "stopped") }
+    var stressRehearsalOnly: String {
+        pick("Stresszteszt csak próba módban indítható", "The stress test runs in rehearsal mode only")
+    }
+    var noGoYet: String { pick("Még nem volt GO", "No GO yet") }
+
+    func memory(now: String, launch: String) -> String {
+        pick("\(now) · induláskor \(launch)", "\(now) · at launch \(launch)")
+    }
+
+    func goTimings(_ count: Int) -> String {
+        pick("GO váltási idő billentyűtől (utolsó \(count))", "GO switch time from key (last \(count))")
+    }
+
+    func timings(_ stats: TimingStats) -> String {
+        let values = [stats.min, stats.average, stats.max].map { String(format: "%.1f", $0) }
+        return pick(
+            "min \(values[0]) · átlag \(values[1]) · max \(values[2]) ms (\(stats.count))",
+            "min \(values[0]) · avg \(values[1]) · max \(values[2]) ms (\(stats.count))")
+    }
+
+    func logTail(_ count: Int) -> String {
+        pick("Napló (utolsó \(count) sor)", "Log (last \(count) lines)")
+    }
+
     // --- Last key ---
     func action(_ result: KeyResult) -> String {
         switch result {
         case .nothing: nothing
-        case .advanced: pick("Haladó nézet (még nincs kész)", "Advanced view (not built yet)")
+        case .advanced: pick("Haladó nézet", "Advanced view")
+        case .stressStopped: pick("Stresszteszt leállítva", "Stress test stopped")
         case .command(let command): action(command)
         }
     }
@@ -336,7 +460,7 @@ struct Strings {
         case .requestMode: pick("Módváltás", "Mode switch")
         case .unlockEditing: unlockEditing
         case .lockEditing: lock
-        case .requestQuit: pick("Kilépés", "Quit")
+        case .requestQuit, .confirmQuitByClick: pick("Kilépés", "Quit")
         case .armedReady, .liveEnded: ""
         }
     }

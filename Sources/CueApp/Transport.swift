@@ -36,7 +36,7 @@ struct LiveProgress: View {
                     .foregroundStyle(Palette.dim)
             }
         }
-        .opacity(clip != nil && time != nil ? 1 : 0)
+        .opacity(model.liveSlot != nil && time != nil ? 1 : 0)
     }
 
     private func untilPlanned(_ planned: Double, _ position: Double) -> String {
@@ -84,25 +84,33 @@ struct ButtonRow: View {
     var body: some View {
         let s = model.strings
         let cover = model.state.cover
+        let key = { (command: Command) in Self.key(model.keyMap.chords(for: .command(command)).first, s) }
         HStack(spacing: 8) {
-            KeyButton(label: s.go, key: "Enter", style: .go) { model.send(.go) }
-            KeyButton(label: s.play, key: "Space") { model.send(.playPause) }
-            KeyButton(label: s.restart, key: "Home") { model.send(.restartLive) }
-            KeyButton(label: "−30", key: "⇧←") { model.send(.seekLive(by: -30)) }
-            KeyButton(label: "−5", key: "←") { model.send(.seekLive(by: -5)) }
-            KeyButton(label: "+5", key: "→") { model.send(.seekLive(by: 5)) }
-            KeyButton(label: "+30", key: "⇧→") { model.send(.seekLive(by: 30)) }
-            KeyButton(label: s.black.uppercased(), key: "B", style: .black, on: cover == .black) {
+            KeyButton(label: s.go, key: key(.go), style: .go) { model.send(.go) }
+            KeyButton(label: s.play, key: key(.playPause)) { model.send(.playPause) }
+            KeyButton(label: s.restart, key: key(.restartLive)) { model.send(.restartLive) }
+            KeyButton(label: "−30", key: key(.seekLive(by: -30))) { model.send(.seekLive(by: -30)) }
+            KeyButton(label: "−5", key: key(.seekLive(by: -5))) { model.send(.seekLive(by: -5)) }
+            KeyButton(label: "+5", key: key(.seekLive(by: 5))) { model.send(.seekLive(by: 5)) }
+            KeyButton(label: "+30", key: key(.seekLive(by: 30))) { model.send(.seekLive(by: 30)) }
+            KeyButton(label: s.black.uppercased(), key: key(.toggleCover(.black)), style: .black, on: cover == .black) {
                 model.send(.toggleCover(.black))
             }
-            KeyButton(label: "\(s.logo.uppercased()) 1", key: "L", on: cover == .logo(1)) {
+            KeyButton(label: "\(s.logo.uppercased()) 1", key: key(.toggleCover(.logo(1))), on: cover == .logo(1)) {
                 model.send(.toggleCover(.logo(1)))
             }
-            KeyButton(label: "\(s.logo.uppercased()) 2", key: "⇧L", on: cover == .logo(2)) {
+            KeyButton(label: "\(s.logo.uppercased()) 2", key: key(.toggleCover(.logo(2))), on: cover == .logo(2)) {
                 model.send(.toggleCover(.logo(2)))
             }
-            KeyButton(label: s.sound, key: "M") { model.send(.toggleMute) }
+            KeyButton(label: s.sound, key: key(.toggleMute)) { model.send(.toggleMute) }
         }
+    }
+
+    // Symbols keep the buttons narrow: ⇧← rather than Shift+←; an unbound action shows a dash.
+    private static func key(_ chord: KeyChord?, _ s: Strings) -> String {
+        guard let chord else { return "-" }
+        let symbols: [(Modifier, String)] = [(.control, "⌃"), (.option, "⌥"), (.shift, "⇧"), (.command, "⌘")]
+        return symbols.filter { chord.modifiers.contains($0.0) }.map(\.1).joined() + s.key(KeyChord(key: chord.key))
     }
 }
 

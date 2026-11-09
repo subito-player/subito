@@ -312,7 +312,47 @@ extension ShowState {
         #expect(state.send(.parkArmed(by: 5)) == [])
         #expect(state.armedAt == 45)
         #expect(state.ready(.a, 1) == [.seekTo(.a, 45)])
+        // GO would show frame 0 until the seek lands.
+        #expect(!state.armedReady)
+        #expect(state.send(.go) == [.notice(.armedNotReady)])
+        #expect(state.ready(.a, 1) == [])
         #expect(state.armedReady)
+        #expect(state.send(.go).prefix(2) == [.show(.clip(.a)), .play(.a)])
+    }
+
+    @Test func parkingWhileReadyWaitsForTheSeekToLand() {
+        var state = ShowState.loaded()
+        state.send(.arm(index: 1))
+        #expect(state.ready(.a, 1) == [])
+        #expect(state.armedReady)
+        #expect(state.send(.parkArmedAt(40)) == [.seekTo(.a, 40)])
+        #expect(!state.armedReady)
+        #expect(state.send(.go) == [.notice(.armedNotReady)])
+        state.ready(.a, 1)
+        #expect(state.armedReady)
+    }
+
+    @Test func staleOrForeignReportsNeverMarkAParkSeekReady() {
+        var state = ShowState.loaded()
+        state.send(.arm(index: 1))
+        state.ready(.a, 1)
+        state.send(.parkArmedAt(40))
+        // The other slot, another clip, or a clip armed earlier: none of them is this seek.
+        state.send(.armedReady(.b, url(show[1]), duration: 100))
+        state.send(.armedReady(.a, url(show[2]), duration: 100))
+        #expect(!state.armedReady)
+        // A cancelled seek never reports; only the latest park's report counts.
+        state.send(.parkArmedAt(50))
+        #expect(!state.armedReady)
+        state.ready(.a, 1)
+        #expect(state.armedReady)
+        #expect(state.armedAt == 50)
+        // Re-arming starts over: the next report is a load again, which seeks to the new park.
+        state.send(.armNext)
+        state.send(.armPrevious)
+        state.send(.parkArmedAt(20))
+        #expect(state.ready(.a, 1) == [.seekTo(.a, 20)])
+        #expect(!state.armedReady)
     }
 
     @Test func readyClampsAParkPastTheEnd() {
@@ -327,10 +367,10 @@ extension ShowState {
         var state = ShowState.loaded()
         state.send(.arm(index: 1))
         state.ready(.a, 1, duration: 100)
-        #expect(state.send(.parkArmed(by: -5)) == [.seekTo(.a, 0)])
         #expect(state.send(.parkArmed(by: 130)) == [.seekTo(.a, 99.5)])
         #expect(state.send(.parkArmedAt(40)) == [.seekTo(.a, 40)])
         #expect(state.send(.parkArmed(by: -5)) == [.seekTo(.a, 35)])
+        state.ready(.a, 1)
         #expect(state.send(.go) == [.show(.clip(.a)), .play(.a), .load(.b, url(show[2]), at: 0)])
     }
 
@@ -338,7 +378,22 @@ extension ShowState {
         var state = ShowState.loaded()
         state.send(.arm(index: 1))
         state.ready(.a, 1, duration: 0.3)
-        #expect(state.send(.parkArmedAt(5)) == [.seekTo(.a, 0)])
+        #expect(state.send(.parkArmedAt(5)) == [])
+        #expect(state.armedReady)
+    }
+
+    @Test func parkingWhereTheClipAlreadyIsKeepsItReady() {
+        var state = ShowState.loaded()
+        state.send(.arm(index: 1))
+        state.ready(.a, 1)
+        #expect(state.send(.parkArmed(by: -5)) == [])
+        #expect(state.send(.parkArmedAt(0)) == [])
+        #expect(state.armedReady)
+        state.send(.parkArmedAt(40))
+        state.ready(.a, 1)
+        #expect(state.send(.parkArmedAt(40)) == [])
+        #expect(state.armedReady)
+        #expect(state.send(.go).prefix(2) == [.show(.clip(.a)), .play(.a)])
     }
 }
 
@@ -426,6 +481,38 @@ extension ShowState {
         #expect(state.send(.requestQuit) == [.notice(.confirmQuit)])
         #expect(state.send(.requestQuit, at: 3.5) == [.notice(.confirmQuit)])
         #expect(state.send(.requestQuit, at: 4) == [.quit])
+    }
+
+    @Test func concertQuitNeedsTwoPressesAndAClickWithin5s() {
+        var state = ShowState.loaded()
+        state.restoreMode(.concert)
+        #expect(state.send(.confirmQuitByClick) == [])
+        #expect(state.send(.requestQuit) == [.notice(.confirmQuit)])
+        #expect(state.send(.requestQuit, at: 1) == [.notice(.confirmQuitClick)])
+        #expect(state.activePending(at: t0 + 5.9) == .confirmQuitClick)
+        #expect(state.send(.confirmQuitByClick, at: 5.9) == [.quit])
+
+        state.send(.requestQuit, at: 10)
+        state.send(.requestQuit, at: 11)
+        #expect(state.send(.confirmQuitByClick, at: 16) == [])
+        #expect(state.pending == nil)
+    }
+
+    @Test func aKeyBetweenTheQuitPressesAndTheClickCancelsIt() {
+        var state = ShowState.loaded()
+        state.restoreMode(.concert)
+        state.send(.requestQuit)
+        state.send(.requestQuit)
+        state.send(.toggleCover(.black))
+        #expect(state.send(.confirmQuitByClick) == [])
+    }
+
+    @Test func rehearsalQuitIgnoresTheClick() {
+        var state = ShowState.loaded()
+        state.send(.requestQuit)
+        #expect(state.send(.confirmQuitByClick) == [])
+        state.send(.requestQuit)
+        #expect(state.send(.requestQuit) == [.quit])
     }
 
     @Test func anotherPressCancelsThePendingConfirmation() {
@@ -548,6 +635,7 @@ extension ShowState {
         var state = ShowState.clip1LiveOnA()
         state.ready(.b, 2)
         state.send(.parkArmedAt(30))
+        state.ready(.b, 2)
         state.send(.toggleCover(.black))
         let cues = [Cue(kind: .black, movieIndex: nil)] + show
         #expect(state.applyEdit(cues: cues, indexMap: Self.shifted) == [])

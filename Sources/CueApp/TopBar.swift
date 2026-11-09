@@ -13,8 +13,8 @@ struct TopBar: View {
                 .font(.system(size: 17, weight: .semibold))
                 .lineLimit(1)
                 .frame(minWidth: 140, alignment: .leading)
-            // Rehearsal, or a concert with editing unlocked.
-            if model.canEdit {
+            // Rehearsal only: an unlocked concert may edit its show but never swap it for another.
+            if model.state.mode == .rehearsal {
                 HStack(spacing: 8) {
                     BarButton(text: s.open, action: pickers.openShow)
                     BarButton(text: s.newMovie, action: pickers.newMovie)
@@ -133,7 +133,7 @@ private struct LastKeyView: View {
         let s = model.strings
         HStack(spacing: 6) {
             Text(s.lastKey).foregroundStyle(Palette.dim).fixedSize()
-            Text(model.lastKey?.name ?? "-")
+            Text(model.lastKey.map { s.key($0.chord) } ?? "-")
                 .font(.system(size: 14, weight: .semibold, design: .monospaced))
                 .fixedSize()
                 .padding(.horizontal, 6)

@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import CueCore
 
 enum OutputStatus: Equatable {
     case attached(name: String?, hz: Double, mirrored: Bool)
@@ -46,7 +47,21 @@ final class DisplayWatcher {
 
     static func choices() -> [DisplayChoice] {
         let saved = savedIdentity
-        return externalDisplays().map { DisplayChoice(id: $0, name: name(of: $0), saved: identity(of: $0) == saved) }
+        return roles().candidates.map { DisplayChoice(id: $0, name: name(of: $0), saved: identity(of: $0) == saved) }
+    }
+
+    // One source for the control screen, the output, the picker and the cursor guard.
+    static func roles() -> DisplayRoles {
+        let online = displays(CGGetOnlineDisplayList)
+        let active = Set(displays(CGGetActiveDisplayList))
+        let infos = online.map { display in
+            DisplayInfo(
+                id: display, mirrorOf: CGDisplayPrimaryDisplay(display), builtIn: CGDisplayIsBuiltin(display) != 0,
+                active: active.contains(display))
+        }
+        let saved = savedIdentity
+        let preferred = saved.flatMap { saved in online.first { identity(of: $0) == saved } }
+        return DisplayRoles(displays: infos, main: CGMainDisplayID(), preferred: preferred)
     }
 
     // Called by the control screen's display picker; nil goes back to the first external display.
@@ -84,10 +99,11 @@ final class DisplayWatcher {
 
     private func reattach() {
         guard !configuring else { return }
-        guard let display = pickOutput() else {
+        let roles = Self.roles()
+        guard let display = roles.output else {
             outputDisplay = nil
             window.orderOut(nil)
-            let mirror = Self.laptopMirror()
+            let mirror = roles.mirror
             let hz = mirror.flatMap { CGDisplayCopyDisplayMode($0)?.refreshRate } ?? 0
             report(mirror == nil ? .missing : .attached(name: nil, hz: hz, mirrored: true))
             return
@@ -112,34 +128,8 @@ final class DisplayWatcher {
         return NSRect(x: bounds.minX, y: mainHeight - bounds.maxY, width: bounds.width, height: bounds.height)
     }
 
-    private func pickOutput() -> CGDirectDisplayID? {
-        let externals = Self.externalDisplays()
-        let saved = Self.savedIdentity
-        return externals.first { Self.identity(of: $0) == saved } ?? externals.first
-    }
-
     private static var savedIdentity: [Int]? {
         UserDefaults.standard.array(forKey: savedKey) as? [Int]
-    }
-
-    // A mirror of the laptop panel already shows the control screen, so it is never an output.
-    private static func laptopMirror() -> CGDirectDisplayID? {
-        let online = displays(CGGetOnlineDisplayList)
-        guard let builtIn = online.first(where: { CGDisplayIsBuiltin($0) != 0 }) else { return nil }
-        return online.first {
-            CGDisplayIsBuiltin($0) == 0 && CGDisplayPrimaryDisplay($0) == CGDisplayPrimaryDisplay(builtIn)
-        }
-    }
-
-    // Built-in from the online list: under hardware mirroring only one of the pair is active.
-    private static func externalDisplays() -> [CGDirectDisplayID] {
-        let displays = activeDisplays()
-        let builtIn = Self.displays(CGGetOnlineDisplayList).first { CGDisplayIsBuiltin($0) != 0 }
-        return displays.filter { display in
-            guard CGDisplayIsBuiltin(display) == 0 else { return false }
-            guard let builtIn else { return true }
-            return CGDisplayPrimaryDisplay(display) != CGDisplayPrimaryDisplay(builtIn)
-        }
     }
 
     private static func name(of display: CGDirectDisplayID) -> String? {
@@ -148,10 +138,6 @@ final class DisplayWatcher {
 
     private static func identity(of display: CGDirectDisplayID) -> [Int] {
         [CGDisplayVendorNumber(display), CGDisplayModelNumber(display), CGDisplaySerialNumber(display)].map(Int.init)
-    }
-
-    static func activeDisplays() -> [CGDirectDisplayID] {
-        displays(CGGetActiveDisplayList)
     }
 
     private static func displays(

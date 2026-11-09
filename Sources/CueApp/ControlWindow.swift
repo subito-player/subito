@@ -51,9 +51,12 @@ final class ControlWindow: NSWindow {
     }
 
     func place() {
-        let candidates = NSScreen.screens.filter { $0.displayID != model.outputDisplay }
-        let builtIn = candidates.first { $0.displayID.map { CGDisplayIsBuiltin($0) != 0 } ?? false }
-        guard let screen = builtIn ?? candidates.first else { return }
+        let control = DisplayWatcher.roles().control
+        let screens = NSScreen.screens
+        guard
+            let screen = screens.first(where: { $0.displayID == control })
+                ?? screens.first(where: { $0.displayID != model.outputDisplay })
+        else { return }
         setFrame(screen.visibleFrame, display: true)
     }
 
@@ -106,7 +109,7 @@ final class ControlWindow: NSWindow {
         panel.allowedContentTypes = [.json]
         panel.message = s.openMessage
         panel.prompt = s.open
-        present(panel) { [weak self] urls in
+        present(panel, rehearsalOnly: true) { [weak self] urls in
             if let url = urls.first { self?.model.open(url.path) }
         }
     }
@@ -120,7 +123,7 @@ final class ControlWindow: NSWindow {
         panel.canCreateDirectories = true
         panel.message = s.newMovieMessage
         panel.prompt = s.create
-        present(panel) { [weak self] urls in
+        present(panel, rehearsalOnly: true) { [weak self] urls in
             if let url = urls.first { self?.model.open(url.path) }
         }
     }
@@ -133,7 +136,7 @@ final class ControlWindow: NSWindow {
         panel.nameFieldStringValue = s.newConcertName + ".concert.json"
         panel.message = s.newConcertMessage
         panel.prompt = s.create
-        present(panel) { [weak self] urls in
+        present(panel, rehearsalOnly: true) { [weak self] urls in
             if let url = urls.first { self?.model.createConcert(at: url) }
         }
     }
@@ -163,8 +166,9 @@ final class ControlWindow: NSWindow {
     }
 
     // A sheet stays on the control screen, never under the output window; a locked concert opens none.
-    private func present(_ panel: NSSavePanel, then done: @escaping ([URL]) -> Void) {
-        guard attachedSheet == nil, model.canEdit else { return }
+    private func present(_ panel: NSSavePanel, rehearsalOnly: Bool = false, then done: @escaping ([URL]) -> Void) {
+        let allowed = rehearsalOnly ? model.state.mode == .rehearsal : model.canEdit
+        guard attachedSheet == nil, allowed else { return }
         endTyping()
         model.filePickerOpen = true
         panel.beginSheetModal(for: self) { [weak self] response in

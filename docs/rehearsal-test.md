@@ -11,7 +11,8 @@ time. Note every surprise in the log at the bottom; it drives v0.2.
    1. GO through every cue. Expect no black frame and no flash between clips (frame counter jumps straight to the
       next clip). `grep switch ~/Library/Logs/Attacca/*.log` shows key-to-switch times.
    2. B, B, L, Shift+L, L during a clip: instant cuts, clip keeps running underneath.
-   3. Space, arrows, Home, Opt+Right on the next clip, then GO: starts from the parked point.
+   3. Space, arrows, Home, Opt+Right on the next clip, then GO: starts from the parked point. Park and GO within a
+      frame or two: the frame counter must start at the parked frame, never show the previous one.
    4. Let a clip end: last frame holds. GO to the break: countdown, title holds at 0:00.
    5. Move the cursor towards the projector: it stops at the laptop edge.
    6. Unplug HDMI during a clip: nothing on the laptop panel, red NO PROJECTOR. Replug: picture returns in the same
@@ -19,6 +20,12 @@ time. Note every surprise in the log at the bottom; it drives v0.2.
    7. `grep "NOT ready" ~/Library/Logs/Attacca/*.log` is empty.
 4. Load the real show (Open in the top bar, then the clip folder or the concert file). Preflight line is green;
    click it for the list, tick the manual checks.
+5. Editor (rehearsal mode): Szerkesztés, check the clip order, set planned end and tail on one clip (markers move),
+   add a 20-minute break with countdown between the two halves, add Logo 1 at the end. Relaunch: same show.
+6. Advanced view (Ctrl+Opt+D): GO times fill in (expect well under 100 ms), memory against launch. Cheat sheet button:
+   print it for the operator. Then a 200-switch stress run watching the projector; any key stops it.
+7. Concert mode: click Koncert twice. Red banner, Dock and menu bar gone, Cmd+Tab blocked, M refused. Unlock with two
+   clicks (orange), Lock again.
 
 ## During rehearsal (operator drives, owner beside)
 

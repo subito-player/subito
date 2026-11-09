@@ -60,7 +60,7 @@ import Testing
             ("KeypadPlus", .command(.armNext)),
             ("Home", .command(.restartLive)),
             ("M", .command(.toggleMute)),
-            ("Cmd+Opt+D", .toggleAdvanced),
+            ("Ctrl+Opt+D", .toggleAdvanced),
         ]
         for (text, expected) in table {
             #expect(try action(text) == expected, "\(text)")
@@ -99,5 +99,137 @@ import Testing
     func badKeymapThrowsNamingTheCulprit(json: String, error: KeyMapError, fragment: String) {
         #expect(throws: error) { try KeyMap(json: Data(json.utf8)) }
         #expect(error.description.contains(fragment))
+    }
+}
+
+private func chords(_ texts: String...) throws -> [KeyChord] {
+    try texts.map { try #require(KeyChord($0)) }
+}
+
+@Suite struct KeyMapLookupTests {
+    @Test func reverseLookupPutsTheMainKeyFirst() throws {
+        let map = KeyMap.standard
+        #expect(map.chords(for: .command(.go)) == (try chords("Enter", "KeypadEnter")))
+        #expect(map.chords(for: .command(.armPrevious)) == (try chords("Up", "KeypadMinus")))
+        #expect(map.chords(for: .command(.armNext)) == (try chords("Down", "KeypadPlus")))
+        #expect(map.chords(for: .command(.toggleCover(.logo(2)))) == (try chords("Shift+L")))
+        #expect(map.chords(for: .command(.seekLive(by: 7))) == [])
+    }
+
+    @Test func orderDoesNotDependOnTheFile() throws {
+        let a = try KeyMap(
+            json: Data(#"{ "format": 1, "keys": { "Shift+G": "go", "KeypadEnter": "go", "G": "go" } }"#.utf8))
+        let b = try KeyMap(
+            json: Data(#"{ "format": 1, "keys": { "G": "go", "KeypadEnter": "go", "Shift+G": "go" } }"#.utf8))
+        #expect(a.chords(for: .command(.go)) == (try chords("G", "Shift+G", "KeypadEnter")))
+        #expect(b.chords(for: .command(.go)) == a.chords(for: .command(.go)))
+    }
+
+    @Test func everyBoundActionIsListedOnce() {
+        let actions = KeyMap.standard.actions
+        #expect(actions.count == 28)
+        #expect(actions.filter { $0 == .command(.go) }.count == 1)
+        #expect(actions.contains(.toggleAdvanced))
+    }
+
+    @Test func chordNameReadsBackAndLabelShowsArrows() throws {
+        let chord = KeyChord(key: "Right", modifiers: [.shift, .option, .command, .control])
+        #expect(chord.name == "Ctrl+Cmd+Opt+Shift+Right")
+        #expect(KeyChord(chord.name) == chord)
+        #expect(chord.label(.en) == "Ctrl+Cmd+Opt+Shift+→")
+        #expect(try #require(KeyChord("Shift+L")).label(.hu) == "Shift+L")
+    }
+
+    @Test func labelsNameKeysInTheOperatorsLanguage() throws {
+        let labels = { (text: String, lang: Lang) in try #require(KeyChord(text)).label(lang) }
+        #expect(try labels("Space", .hu) == "Szóköz")
+        #expect(try labels("Space", .en) == "Space")
+        #expect(try labels("KeypadEnter", .hu) == "Num Enter")
+        #expect(try labels("KeypadEnter", .en) == "Keypad Enter")
+        #expect(try labels("Shift+PageDown", .hu) == "Shift+Page Down")
+        #expect(try labels("Escape", .en) == "Esc")
+    }
+
+    @Test func advancedViewAvoidsTheDockShortcut() throws {
+        #expect(KeyMap.standard.chords(for: .toggleAdvanced) == (try chords("Ctrl+Opt+D")))
+        #expect(try KeyMap.standard.action(for: #require(KeyChord("Cmd+Opt+D"))) == nil)
+    }
+
+    @Test(arguments: [("?", "Shift+/"), ("Opt+!", "Opt+Shift+1"), (":", "Shift+;")])
+    func shiftedCharactersAreRejectedWithTheChordToUse(text: String, use: String) {
+        let json = #"{ "format": 1, "keys": { "Enter": "go", "\#(text)": "black" } }"#
+        #expect(throws: KeyMapError.shiftedKey(chord: text, use: use)) { try KeyMap(json: Data(json.utf8)) }
+        #expect(KeyMapError.shiftedKey(chord: text, use: use).description.contains(use))
+    }
+}
+
+@Suite struct KeyMapFileTests {
+    @Test func missingFileGetsTheDefaultWrittenAndLoaded() throws {
+        try withTempDir { dir in
+            let url = dir.appendingPathComponent("support/keymap.json")
+            #expect(try KeyMap.installDefault(at: url))
+            let text = try String(contentsOf: url, encoding: .utf8)
+            #expect(text == KeyMap.defaultJSON + "\n")
+            let (map, error) = KeyMap.load(from: url)
+            #expect(error == nil)
+            #expect(map.chords(for: .command(.go)) == KeyMap.standard.chords(for: .command(.go)))
+        }
+    }
+
+    @Test func anEditedFileIsNeverOverwritten() throws {
+        try withTempDir { dir in
+            let url = dir.appendingPathComponent("keymap.json")
+            let edited = #"{ "format": 1, "keys": { "PageDown": "go", "KeypadEnter": "go" } }"#
+            try write(edited, to: url)
+            #expect(try KeyMap.installDefault(at: url) == false)
+            #expect(try String(contentsOf: url, encoding: .utf8) == edited)
+            let (map, error) = KeyMap.load(from: url)
+            #expect(error == nil)
+            #expect(map.chords(for: .command(.go)) == (try chords("PageDown", "KeypadEnter")))
+            #expect(try map.action(for: #require(KeyChord("Enter"))) == nil)
+        }
+    }
+
+    @Test func brokenFileFallsBackToTheDefaultAndNamesTheCulprit() throws {
+        try withTempDir { dir in
+            let url = dir.appendingPathComponent("keymap.json")
+            try write(#"{ "format": 1, "keys": { "Enter": "go", "B": "blackout" } }"#, to: url)
+            let (map, error) = KeyMap.load(from: url)
+            #expect(error == .unknownAction(chord: "B", action: "blackout"))
+            #expect(try map.action(for: #require(KeyChord("B"))) == .command(.toggleCover(.black)))
+            #expect(try map.action(for: #require(KeyChord("Enter"))) == .command(.go))
+        }
+    }
+
+    @Test func aMapWithoutGoFallsBackToTheDefault() throws {
+        try withTempDir { dir in
+            let url = dir.appendingPathComponent("keymap.json")
+            try write(#"{ "format": 1, "keys": { "B": "black", "Space": "playPause" } }"#, to: url)
+            let (map, error) = KeyMap.load(from: url)
+            #expect(error == .noGo)
+            #expect(map.chords(for: .command(.go)) == (try chords("Enter", "KeypadEnter")))
+        }
+    }
+
+    @Test func unreadableFileFallsBackToTheDefault() throws {
+        try withTempDir { dir in
+            let url = dir.appendingPathComponent("keymap.json")
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            let (map, error) = KeyMap.load(from: url)
+            guard case .unreadable? = error else {
+                Issue.record("expected unreadable, got \(String(describing: error))")
+                return
+            }
+            #expect(error?.description.hasPrefix("keymap.json cannot be read") == true)
+            #expect(map.chords(for: .toggleAdvanced) == (try chords("Ctrl+Opt+D")))
+        }
+    }
+
+    @Test func fileStillMissingAfterAFailedInstallMeansTheDefault() throws {
+        try withTempDir { dir in
+            let (map, error) = KeyMap.load(from: dir.appendingPathComponent("keymap.json"))
+            #expect(error == nil)
+            #expect(map.actions.count == KeyMap.standard.actions.count)
+        }
     }
 }
