@@ -118,11 +118,17 @@ duration, audio), projector modes, memory use, stress runner (random GO/BLACK/LO
 **Preflight** (launch and on load, results on control only): files exist; playable by AVFoundation (red if not, plain
 message); size, fps, codec, duration vs `planned_end_s + tail_s` (yellow if off by > 1 s or not 1920x1080 23.976,
 still plays); logos load; projector present and not mirrored; power adapter; current Hz and available rates;
-"Displays have separate Spaces" value; current sound output device (yellow if HDMI; app never changes it). Manual ticks: Focus/Do Not Disturb on, automatic updates off, old rig ready.
+"Displays have separate Spaces" value; current sound output device (yellow if HDMI; app never changes it). Manual
+ticks: Focus/Do Not Disturb on, automatic updates off, black desktop wallpaper on every display, old rig ready.
 
-**Projector unplugged:** hide output window before the reconfiguration finishes, never let macOS move it to the
-laptop. Red status on control. Playback continues. When a display matching the saved one (vendor, model, serial;
-else first external display) returns, re-show output in the current state.
+**Projector unplugged:** hide output window at the start of any display reconfiguration (macOS reports it for every
+display, so we can't tell which one is going away), never let macOS move it to the laptop. Cost: a brief desktop
+flash on the projector during any reconfiguration, hence the black wallpaper. Red status on control. Playback
+continues. Output display: the one picked on the control screen (vendor, model, serial) when present, else the first
+external display; attaching never changes the saved pick. Re-show output in the current state when it returns.
+
+**Quitting:** only through the confirmed press-twice quit. Dock Quit asks like Cmd+Q; logout and restart for updates
+are refused while the app runs.
 
 **Crash recovery:** state file written every second (open concert, mode, live item, position, cover). Relaunch: output
 black, same concert and mode, the previously live clip armed at its last position, status "Recovered. Was playing 03
