@@ -1,9 +1,5 @@
 import AppKit
-
-final class OutputWindow: NSWindow {
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
-}
+import CueCore
 
 enum AppInfo {
     static var name: String {
@@ -18,62 +14,60 @@ enum AppInfo {
     }
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var controlWindow: NSWindow?
-    private var outputWindow: OutputWindow?
+    private var model: AppModel?
+    private var controlWindow: ControlWindow?
+    private var keyMonitor: Any?
+    private var activity: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        installMainMenu()
-        controlWindow = makeControlWindow(on: Self.controlScreen())
-        if let screen = Self.outputScreen() {
-            outputWindow = makeOutputWindow(on: screen)
-        } else {
-            print("no output display")
-        }
-        controlWindow?.makeKeyAndOrderFront(nil)
-        NSApp.activate()
-        // Stopgap until task 4's DisplayWatcher replaces it.
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(screenParametersChanged),
-            name: NSApplication.didChangeScreenParametersNotification,
-            object: nil
+        if handOverToRunningInstance() { return }
+        Log.pruneOldFiles()
+        Log.info("launch \(AppInfo.name) \(AppInfo.version ?? "dev")")
+        activity = ProcessInfo.processInfo.beginActivity(
+            options: [.idleDisplaySleepDisabled, .idleSystemSleepDisabled, .userInitiated],
+            reason: "Projector output must stay on during a show"
         )
-    }
-
-    @objc private func screenParametersChanged() {
-        guard let window = outputWindow else { return }
-        if let screen = Self.outputScreen() {
-            window.setFrame(screen.frame, display: false)
-            window.orderFrontRegardless()
-        } else {
-            window.orderOut(nil)
+        installMainMenu()
+        let model = AppModel(showPath: CommandLine.arguments.dropFirst().first { !$0.hasPrefix("-") })
+        self.model = model
+        let control = ControlWindow(model: model)
+        controlWindow = control
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak model] event in
+            guard let model else { return event }
+            return model.keyDown(event)
         }
+        control.makeKeyAndOrderFront(nil)
+        NSApp.activate()
     }
 
-    // The laptop panel hosts control; the output must never land on it.
-    private static func controlScreen() -> NSScreen? {
-        NSScreen.screens.first(where: isBuiltIn) ?? NSScreen.screens.first
+    // Dock Quit, logout and update restarts get the same press-twice confirmation as Cmd+Q.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let model, !model.quitConfirmed else { return .terminateNow }
+        Log.info("quit requested by the system, treated as requestQuit")
+        model.send(.requestQuit)
+        return model.quitConfirmed ? .terminateNow : .terminateCancel
     }
 
-    private static func outputScreen() -> NSScreen? {
-        let control = controlScreen()
-        return NSScreen.screens.first { $0 != control }
+    func applicationWillTerminate(_ notification: Notification) {
+        Log.info("terminate")
+        Log.flush()
     }
 
-    private static func isBuiltIn(_ screen: NSScreen) -> Bool {
-        guard let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
-            return false
-        }
-        return CGDisplayIsBuiltin(id.uint32Value) != 0
+    // Not enabled yet: concert mode turns it on so rehearsal can still switch apps.
+    func setKiosk(_ on: Bool) {
+        NSApp.presentationOptions =
+            on ? [.hideDock, .hideMenuBar, .disableProcessSwitching, .disableHideApplication] : []
+    }
+
+    @objc private func quitFromMenu() {
+        model?.send(.requestQuit, chord: KeyChord(key: "Q", modifiers: [.command]))
     }
 
     private func installMainMenu() {
-        let quit = NSMenuItem(
-            title: "Quit \(AppInfo.name)",
-            action: #selector(NSApplication.terminate(_:)),
-            keyEquivalent: "q"
-        )
+        let quit = NSMenuItem(title: "Quit \(AppInfo.name)", action: #selector(quitFromMenu), keyEquivalent: "q")
+        quit.target = self
         let appMenu = NSMenu()
         appMenu.addItem(quit)
         let appItem = NSMenuItem()
@@ -83,56 +77,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = mainMenu
     }
 
-    private func makeControlWindow(on screen: NSScreen?) -> NSWindow {
-        let size = NSSize(width: 900, height: 600)
-        let window = NSWindow(
-            contentRect: NSRect(origin: .zero, size: size),
-            styleMask: [.titled, .miniaturizable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.isReleasedWhenClosed = false
-        window.title = AppInfo.name
-        window.appearance = NSAppearance(named: .darkAqua)
-        window.backgroundColor = NSColor(white: 0.07, alpha: 1)
-        if let frame = screen?.visibleFrame {
-            window.setFrameOrigin(
-                NSPoint(x: frame.midX - size.width / 2, y: frame.midY - size.height / 2)
-            )
-        } else {
-            window.center()
-        }
-
-        let text = AppInfo.version.map { "\(AppInfo.name) v\($0)" } ?? AppInfo.name
-        let label = NSTextField(labelWithString: text)
-        label.font = .systemFont(ofSize: 48, weight: .semibold)
-        label.textColor = .white
-        label.translatesAutoresizingMaskIntoConstraints = false
-        if let content = window.contentView {
-            content.addSubview(label)
-            NSLayoutConstraint.activate([
-                label.centerXAnchor.constraint(equalTo: content.centerXAnchor),
-                label.centerYAnchor.constraint(equalTo: content.centerYAnchor),
-            ])
-        }
-        return window
-    }
-
-    private func makeOutputWindow(on screen: NSScreen) -> OutputWindow {
-        let window = OutputWindow(
-            contentRect: screen.frame,
-            styleMask: .borderless,
-            backing: .buffered,
-            defer: false
-        )
-        window.isReleasedWhenClosed = false
-        window.setFrame(screen.frame, display: false)
-        window.backgroundColor = .black
-        window.isOpaque = true
-        window.hasShadow = false
-        window.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
-        window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
-        window.orderFrontRegardless()
-        return window
+    // No model yet, so applicationShouldTerminate lets this quit through unconfirmed.
+    private func handOverToRunningInstance() -> Bool {
+        guard let id = Bundle.main.bundleIdentifier else { return false }
+        let own = ProcessInfo.processInfo.processIdentifier
+        let others = NSRunningApplication.runningApplications(withBundleIdentifier: id)
+        guard let other = others.first(where: { $0.processIdentifier != own }) else { return false }
+        print("\(AppInfo.name) is already running (pid \(other.processIdentifier)), activating it")
+        other.activate()
+        NSApp.terminate(nil)
+        return true
     }
 }
