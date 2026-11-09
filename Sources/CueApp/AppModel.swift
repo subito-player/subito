@@ -39,6 +39,7 @@ enum Banner: Equatable {
     case filePicker
     case typing
     case confirmOutput(OutputChoice)
+    case confirmPresentation(OutputPresentation)
     case confirmDelete(Place)
     case confirm(Notice)
     case noProjector
@@ -101,6 +102,7 @@ final class AppModel {
         didSet {
             lang.save()
             engine.defaultBreakTitle = strings.breakTitle
+            engine.window.title = strings.outputWindowTitle(AppInfo.name)
             onLanguageChange()
             Log.info("language \(lang.rawValue)")
         }
@@ -118,6 +120,9 @@ final class AppModel {
     private(set) var outputDisplay: CGDirectDisplayID?
     private(set) var displays: [DisplayChoice] = []
     private(set) var automaticOutput = true
+    // Never saved, so every launch, crash recovery included, starts fullscreen.
+    private(set) var presentation = OutputPresentation.fullscreen
+    private(set) var presentationPending: OutputPresentation?
     private(set) var audioDevice: String?
     private(set) var liveTime: PlayTime?
     private(set) var armedTime: PlayTime?
@@ -153,6 +158,7 @@ final class AppModel {
     @ObservationIgnored private(set) var quitConfirmed = false
     @ObservationIgnored private var noticeAt = Date.distantPast
     @ObservationIgnored private var outputPendingUntil = Date.distantPast
+    @ObservationIgnored private var presentationPendingUntil = Date.distantPast
     @ObservationIgnored private var watcher: DisplayWatcher?
     @ObservationIgnored private var cursorGuard: CursorGuard?
     @ObservationIgnored private var timer: Timer?
@@ -173,6 +179,7 @@ final class AppModel {
         self.problems = problems
         self.recoveries = recoveries
         engine = PlaybackEngine(defaultBreakTitle: Strings(lang: lang).breakTitle)
+        engine.window.title = Strings(lang: lang).outputWindowTitle(AppInfo.name)
 
         engine.onEvent = { [weak self] command in self?.send(command) }
         advanced.send = { [weak self] command in self?.send(command) }
@@ -181,7 +188,11 @@ final class AppModel {
             self?.loadFailed(LoadError(url: url, failure: failure))
         }
         watcher = DisplayWatcher(window: engine.window) { [weak self] status in self?.outputChanged(status) }
-        cursorGuard = CursorGuard { [weak self] in self?.watcher?.outputDisplay }
+        // Only a fullscreen output owns its display; a windowed or hidden one leaves it to the cursor.
+        cursorGuard = CursorGuard { [weak self] in
+            guard let self, self.engine.window.presentation == .fullscreen else { return nil }
+            return self.watcher?.outputDisplay
+        }
         refreshDisplays()
         audioDevice = AudioOutput.defaultDeviceName()
         AudioOutput.observeDefaultDevice { [weak self] in
@@ -231,6 +242,7 @@ final class AppModel {
         if filePickerOpen { return .filePicker }
         if typing { return .typing }
         if let outputPending { return .confirmOutput(outputPending) }
+        if let presentationPending { return .confirmPresentation(presentationPending) }
         if let deletePending { return .confirmDelete(deletePending) }
         if let pending { return .confirm(pending) }
         return output == .missing ? .noProjector : nil
@@ -242,6 +254,10 @@ final class AppModel {
         // "Click here" is only true on the banner itself.
         guard notice != .confirmQuitClick else { return nil }
         return pending == notice && banner != .confirm(notice) ? notice : nil
+    }
+
+    var effectivePresentation: OutputPresentation {
+        .effective(requested: presentation, mode: state.mode)
     }
 
     func name(of choice: OutputChoice, _ s: Strings) -> String {
@@ -282,6 +298,7 @@ final class AppModel {
     ) {
         if !command.isEngineEvent {
             update(\.outputPending, nil)
+            update(\.presentationPending, nil)
             update(\.deletePending, nil)
         }
         if let chord {
@@ -392,6 +409,7 @@ final class AppModel {
         let current: OutputChoice? =
             automaticOutput ? .automatic : displays.first(where: \.saved).map { .display($0.id) }
         guard choice != current else { return }
+        presentationPending = nil
         guard outputPending == choice, Date() < outputPendingUntil else {
             outputPending = choice
             outputPendingUntil = Date().addingTimeInterval(ShowState.confirmWindow)
@@ -403,6 +421,31 @@ final class AppModel {
         Log.info("output display picked: \(display.map { "\($0)" } ?? "automatic")")
         watcher?.setPreferred(display)
         refreshDisplays()
+    }
+
+    // Rehearsal debugging; confirmed like the display chips because it changes the projector.
+    func pickPresentation(_ presentation: OutputPresentation) {
+        advanced.stopStress(reason: "view click")
+        guard state.mode == .rehearsal, presentation != self.presentation else { return }
+        outputPending = nil
+        guard presentationPending == presentation, Date() < presentationPendingUntil else {
+            presentationPending = presentation
+            presentationPendingUntil = Date().addingTimeInterval(ShowState.confirmWindow)
+            return
+        }
+        presentationPending = nil
+        self.presentation = presentation
+        applyPresentation(reason: "picked")
+    }
+
+    private func applyPresentation(reason: String) {
+        let effective = effectivePresentation
+        guard effective != engine.window.presentation else { return }
+        Log.info("output presentation \(engine.window.presentation) -> \(effective) (\(reason))")
+        engine.window.present(effective)
+        // After the window is borderless and shielding again, so the watcher puts it back on the output display.
+        watcher?.placesWindow = effective == .fullscreen
+        if effective == .fullscreen { cursorGuard?.keepOffOutput() }
     }
 
     // --- Advanced view ---
@@ -750,6 +793,8 @@ final class AppModel {
             appliedMode = state.mode
             advanced.stopStress(reason: "mode changed")
             Log.info("mode \(state.mode.rawValue)")
+            if state.mode == .concert { presentation = .fullscreen }
+            applyPresentation(reason: "mode \(state.mode.rawValue)")
             onModeChange(state.mode)
         }
         if state.editUnlocked != appliedUnlock {
@@ -798,6 +843,7 @@ final class AppModel {
         update(\.pending, state.activePending(at: now))
         if notice != nil, now.timeIntervalSince(noticeAt) >= Self.noticeSeconds { notice = nil }
         if outputPending != nil, now >= outputPendingUntil { outputPending = nil }
+        if presentationPending != nil, now >= presentationPendingUntil { presentationPending = nil }
         if deletePending != nil, now >= deletePendingUntil { deletePending = nil }
         if editNotice != nil, now.timeIntervalSince(editNoticeAt) >= Self.noticeSeconds { editNotice = nil }
         var countdown: String?

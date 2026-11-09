@@ -152,6 +152,8 @@ private struct BannerRow: View {
                 banner(s.typing, Palette.confirm)
             case .confirmOutput(let choice)?:
                 banner(s.confirmOutput(model.name(of: choice, s)), Palette.confirm)
+            case .confirmPresentation(let presentation)?:
+                banner(s.confirmPresentation(presentation), Palette.confirm)
             case .confirmDelete(let place)?:
                 banner(s.confirmDelete(name(of: place, s)), Palette.confirm)
             case .confirm(.confirmQuitClick)?:
@@ -245,6 +247,7 @@ private struct StatusLine: View {
         for finding in model.systemFindings where finding.severity == .block && finding.kind != .projector {
             parts.append((s.finding(finding), Palette.live))
         }
+        if let notice = s.presentationNotice(model.effectivePresentation) { parts.append((notice, Palette.warn)) }
         for error in model.loadErrors where error.warning {
             parts.append((s.pictureUnconfirmed(cue(error.url)), Palette.warn))
         }
@@ -269,21 +272,34 @@ private struct OutputChips: View {
         let s = model.strings
         // Locked in concert, unlocked or not: the unlock is for the editor only.
         let locked = model.state.mode == .concert
-        HStack(spacing: 6) {
-            Text("\(s.output):").foregroundStyle(Palette.dim)
-            chip(s.automatic, on: model.automaticOutput) { model.pickOutput(.automatic) }
-            if model.displays.isEmpty {
-                Text(s.noExternalDisplay).foregroundStyle(Palette.dim)
+        HStack(spacing: 16) {
+            HStack(spacing: 6) {
+                Text("\(s.output):").foregroundStyle(Palette.dim)
+                chip(s.automatic, on: model.automaticOutput) { model.pickOutput(.automatic) }
+                if model.displays.isEmpty {
+                    Text(s.noExternalDisplay).foregroundStyle(Palette.dim)
+                }
+                ForEach(model.displays) { display in
+                    chip(s.display(display.name, id: display.id), on: display.id == model.outputDisplay) {
+                        model.pickOutput(.display(display.id))
+                    }
+                }
             }
-            ForEach(model.displays) { display in
-                chip(s.display(display.name, id: display.id), on: display.id == model.outputDisplay) {
-                    model.pickOutput(.display(display.id))
+            .disabled(locked)
+            .opacity(locked ? 0.55 : 1)
+            // Hidden, not just disabled, in concert: the output is always fullscreen there.
+            if !locked {
+                HStack(spacing: 6) {
+                    Text("\(s.view):").foregroundStyle(Palette.dim)
+                    ForEach(OutputPresentation.allCases, id: \.self) { presentation in
+                        chip(s.presentation(presentation), on: model.presentation == presentation) {
+                            model.pickPresentation(presentation)
+                        }
+                    }
                 }
             }
         }
         .font(.system(size: 14, weight: .semibold))
-        .disabled(locked)
-        .opacity(locked ? 0.55 : 1)
     }
 
     private func chip(_ text: String, on: Bool, action: @escaping () -> Void) -> some View {

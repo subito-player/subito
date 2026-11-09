@@ -80,7 +80,9 @@ private struct ProjectorStatus: View {
 
     var body: some View {
         let s = model.strings
-        let (dot, text, ink): (Color, String, Color) =
+        let presentation = model.effectivePresentation
+        let fullscreen = presentation == .fullscreen
+        let (status, text, ink): (Color, String, Color) =
             switch model.output {
             case .attached(let name, let hz, let mirrored)?:
                 mirrored
@@ -89,8 +91,13 @@ private struct ProjectorStatus: View {
             case .missing?: (Palette.live, s.noProjector, Palette.live)
             case nil: (Palette.dim, "", Palette.dim)
             }
+        // Red still wins; otherwise a rehearsal debug view is never shown as a green projector.
+        let dot = status == Palette.ok && !fullscreen ? Palette.warn : status
         HStack(spacing: 6) {
             Circle().fill(dot).frame(width: 10, height: 10)
+            if !fullscreen {
+                Text(s.presentation(presentation)).bold().foregroundStyle(Palette.warn).fixedSize()
+            }
             Text(text).foregroundStyle(ink).lineLimit(1)
         }
         .font(.system(size: 15, weight: dot == Palette.live ? .bold : .regular))
