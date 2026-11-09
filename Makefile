@@ -7,7 +7,7 @@ ARCHS := --arch arm64 --arch x86_64
 APP_DIR := build/$(APP_NAME).app
 
 .DEFAULT_GOAL := app
-.PHONY: app run zip lint format test clean samples
+.PHONY: app run zip lint format test clean samples check
 
 define INFO_PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -76,6 +76,11 @@ run: app
 
 zip: app
 	ditto -c -k --keepParent "$(APP_DIR)" "build/$(APP_NAME)-$(VERSION).zip"
+
+# Headless preflight with the built app, never rebuilding it: make check SHOW=<concert, movie or clip folder>.
+check:
+	@test -x "$(APP_DIR)/Contents/MacOS/$(APP_NAME)" || { echo "no built app at $(APP_DIR): run make app first" >&2; exit 1; }
+	@"$(APP_DIR)/Contents/MacOS/$(APP_NAME)" --check "$(SHOW)"
 
 lint:
 	swift format lint --strict --recursive Sources Tests Package.swift

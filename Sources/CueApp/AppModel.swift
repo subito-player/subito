@@ -335,10 +335,7 @@ final class AppModel {
             run(state.replaceCues(document.cues), label: "open", receivedAt: ProcessInfo.processInfo.systemUptime)
             probes = [:]
             let logos = document.logos
-            logoFindings = logos.indices.compactMap { index -> Finding? in
-                guard engine.logo(index + 1) == nil else { return nil }
-                return Finding(severity: .warn, kind: .logo, detail: "\(index + 1) · \(logos[index].lastPathComponent)")
-            }
+            logoFindings = Preflight.evaluate(logos: logos, loaded: logos.indices.map { engine.logo($0 + 1) != nil })
             checkShow()
             return true
         } catch {

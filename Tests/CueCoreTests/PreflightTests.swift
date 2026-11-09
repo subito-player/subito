@@ -120,6 +120,18 @@ private func probe(_ change: (inout ClipProbe) -> Void) -> ClipProbe {
     }
 }
 
+@Suite struct LogoPreflightTests {
+    @Test func aLogoThatDidNotLoadWarnsWithItsNumberAndFileName() {
+        let logos = ["a.png", "b.png", "c.png"].map { URL(fileURLWithPath: "/show/logos/\($0)") }
+        #expect(Preflight.evaluate(logos: logos, loaded: [true, true, true]) == [])
+        #expect(
+            Preflight.evaluate(logos: logos, loaded: [true, false, false]) == [
+                Finding(severity: .warn, kind: .logo, detail: "2 · b.png"),
+                Finding(severity: .warn, kind: .logo, detail: "3 · c.png"),
+            ])
+    }
+}
+
 @Suite struct SystemPreflightTests {
     private func system(_ change: (inout SystemProbe) -> Void = { _ in }) -> [Finding] {
         var probe = SystemProbe(

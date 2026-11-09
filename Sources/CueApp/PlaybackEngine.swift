@@ -79,7 +79,7 @@ final class PlaybackEngine: Player {
     // Layers already showing a logo keep their image; the new ones apply from the next cover or GO.
     func setLogos(_ urls: [URL]) {
         logos = urls.enumerated().map { index, url in
-            let image = NSImage(contentsOf: url)?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            let image = PreflightRunner.logoImage(at: url)
             if image == nil { Log.info("logo \(index + 1) cannot be loaded: \(url.path)") }
             return image
         }
