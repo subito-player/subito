@@ -37,6 +37,7 @@ struct Strings {
     var output: String { pick("Kimenet", "Output") }
     var automatic: String { pick("Automatikus", "Automatic") }
     var noExternalDisplay: String { pick("Nincs külső kijelző", "No external display") }
+    var view: String { pick("Nézet", "View") }
     var open: String { pick("Megnyitás", "Open") }
     var openMessage: String {
         pick(
@@ -61,6 +62,22 @@ struct Strings {
     func confirmOutput(_ name: String) -> String {
         pick("Kattints újra: kimenet → \(name)", "Click again: output → \(name)")
     }
+
+    func presentation(_ presentation: OutputPresentation) -> String {
+        switch presentation {
+        case .fullscreen: pick("Teljes képernyő", "Fullscreen")
+        case .window: pick("Ablakban", "Window")
+        case .off: pick("Kikapcsolva", "Off")
+        }
+    }
+
+    func confirmPresentation(_ presentation: OutputPresentation) -> String {
+        pick(
+            "Kattints újra: nézet → \(self.presentation(presentation))",
+            "Click again: view → \(self.presentation(presentation))")
+    }
+
+    func outputWindowTitle(_ app: String) -> String { pick("\(app): kimenet", "\(app): output") }
 
     func projector(_ name: String, hz: Double) -> String {
         let label = pick("Projektor: \(name)", "Projector: \(name)")
@@ -234,6 +251,19 @@ struct Strings {
     // --- Status line ---
     var allGood: String { pick("Minden rendben", "All good") }
     var noProjectorStatus: String { pick("Nincs projektor csatlakoztatva", "No projector connected") }
+
+    // nil while fullscreen: only the rehearsal debug views need a word on the status line.
+    func presentationNotice(_ presentation: OutputPresentation) -> String? {
+        switch presentation {
+        case .fullscreen: nil
+        case .window:
+            pick("Próba: a kimenet ablakban van, nem teljes képernyőn", "Rehearsal: output in a window, not fullscreen")
+        case .off:
+            pick(
+                "Próba: a kimenet kikapcsolva, a projektor nem kap képet",
+                "Rehearsal: output off, the projector gets no picture")
+        }
+    }
 
     func cannotPlay(_ cue: String, reason: String) -> String {
         pick("\(cue) nem játszható le: \(reason)", "\(cue) cannot play: \(reason)")

@@ -99,6 +99,7 @@ Space can never land in an alert.
 | Editing | on | locked; "Unlock editing" + confirm, orange banner, live item can't be moved or deleted, Lock button relocks |
 | Plays | any movie, concert, or mp4 dropped on window | the concert list |
 | Audio | muted at launch, M toggles, loud badge naming the device ("AUDIO ON → HDMI") for the whole room | forced mute, M disabled |
+| Output view | Fullscreen, Window or Off (debugging; click twice; every launch starts Fullscreen) | always Fullscreen |
 | Banner | none | big CONCERT |
 
 The mode survives every launch: a clean launch restores the saved mode too, so concert stays concert.

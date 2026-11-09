@@ -18,6 +18,15 @@ final class DisplayWatcher {
     private static let savedKey = "outputDisplay"
 
     var onChange: (OutputStatus) -> Void = { _ in }
+    // False while rehearsal shows the output in a window or not at all: the watcher then only reports.
+    var placesWindow = true {
+        didSet {
+            guard placesWindow, !oldValue else { return }
+            // Mid-reconfiguration the end of it re-attaches; until then the output stays hidden, as at its start.
+            if configuring { window.orderOut(nil) }
+            reattach()
+        }
+    }
     private(set) var outputDisplay: CGDirectDisplayID?
     private let window: NSWindow
     private var reattachScheduled = false
@@ -78,6 +87,7 @@ final class DisplayWatcher {
         if flags.contains(.beginConfigurationFlag) {
             // Before macOS moves windows off a vanishing display, so the output never lands on the laptop.
             configuring = true
+            guard placesWindow else { return }
             window.orderOut(nil)
             Log.info("display \(display) reconfiguring, output hidden")
         } else {
@@ -102,15 +112,17 @@ final class DisplayWatcher {
         let roles = Self.roles()
         guard let display = roles.output else {
             outputDisplay = nil
-            window.orderOut(nil)
+            if placesWindow { window.orderOut(nil) }
             let mirror = roles.mirror
             let hz = mirror.flatMap { CGDisplayCopyDisplayMode($0)?.refreshRate } ?? 0
             report(mirror == nil ? .missing : .attached(name: nil, hz: hz, mirrored: true))
             return
         }
         outputDisplay = display
-        window.setFrame(Self.appKitFrame(of: display), display: true)
-        window.orderFrontRegardless()
+        if placesWindow {
+            window.setFrame(Self.appKitFrame(of: display), display: true)
+            window.orderFrontRegardless()
+        }
         let hz = CGDisplayCopyDisplayMode(display)?.refreshRate ?? 0
         report(.attached(name: Self.name(of: display), hz: hz, mirrored: CGDisplayIsInMirrorSet(display) != 0))
     }

@@ -32,6 +32,19 @@ laptop panel. Files (folder names follow `app.env`):
 - Key map (edit, then relaunch): `~/Library/Application Support/me.blint.attacca/keymap.json`
 - Cheat sheet (Advanced view, Ctrl+Opt+D): `~/Library/Application Support/me.blint.attacca/cheatsheet.html`
 
+## Clip formats
+
+Plays MP4 and MOV (H.264, HEVC, ProRes). MKV, WebM and most AVI files don't play (preflight marks them red); convert
+them first:
+
+```sh
+nix shell nixpkgs#ffmpeg --command ffmpeg -i in.mkv -c copy out.mp4               # H.264 inside: seconds, lossless
+nix shell nixpkgs#ffmpeg --command ffmpeg -i in.mkv -c copy -tag:v hvc1 out.mp4   # HEVC inside
+nix shell nixpkgs#ffmpeg --command ffmpeg -i in.avi -c:v h264_videotoolbox -b:v 20M -c:a aac out.mp4   # anything else
+```
+
+## First open
+
 A downloaded (quarantined) build opens via System Settings > Privacy & Security > Open Anyway, or
 `xattr -dr com.apple.quarantine <app>`.
 
