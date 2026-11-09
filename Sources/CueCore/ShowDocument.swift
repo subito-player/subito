@@ -104,6 +104,19 @@ public struct ShowDocument: Equatable, Sendable {
         return ShowDocument(movie: movie, at: file)
     }
 
+    // Like `load`, but calls only the loaders, so nothing is ever written; a folder without a movie file is read in memory.
+    public static func loadReadOnly(_ url: URL) throws -> ShowDocument {
+        var isFolder: ObjCBool = false
+        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder), isFolder.boolValue {
+            let file = ShowLoader.movieFile(inFolder: url)
+            let exists = FileManager.default.fileExists(atPath: file.path)
+            return ShowDocument(
+                movie: exists ? try ShowLoader.loadMovie(at: file) : try ShowLoader.movie(fromFolder: url), at: file)
+        }
+        if url.lastPathComponent.hasSuffix(".concert.json") { return ShowDocument(try ShowLoader.loadConcert(at: url)) }
+        return ShowDocument(movie: try ShowLoader.loadMovie(at: url), at: url)
+    }
+
     public var title: String {
         concert?.title ?? movies[url]?.title ?? ""
     }

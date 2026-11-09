@@ -3,6 +3,8 @@ import Foundation
 enum Log {
     private static let keepDays: Double = 14
     private static let queue = DispatchQueue(label: "log")
+    // `--check`: stderr only, so stdout stays the JSON report and no file is touched. Set before any logging.
+    static var headless = false
     static let directory = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("Logs", isDirectory: true)
         .appendingPathComponent(AppInfo.name, isDirectory: true)
@@ -54,8 +56,12 @@ enum Log {
 
     private static func write(_ message: String, at date: Date) {
         let line = "\(stamp.string(from: date)) \(message)"
-        print(line)
         let data = Data((line + "\n").utf8)
+        if headless {
+            try? FileHandle.standardError.write(contentsOf: data)
+            return
+        }
+        print(line)
         let file = directory.appendingPathComponent(day.string(from: date) + ".log")
         do {
             if !FileManager.default.fileExists(atPath: file.path) {

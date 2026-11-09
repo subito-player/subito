@@ -389,6 +389,50 @@ extension ShowDocument {
         }
     }
 
+    @Test func loadReadOnlyReadsAFolderInMemoryAndWritesNothing() throws {
+        try withTempDir { dir in
+            let folder = dir.appendingPathComponent("showman")
+            for name in ["02_b.mp4", "01_a.mp4", "notes.txt"] { try write("", to: folder.appendingPathComponent(name)) }
+            let before = try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted()
+
+            let document = try ShowDocument.loadReadOnly(folder)
+
+            #expect(document.url == ShowLoader.movieFile(inFolder: folder))
+            #expect(document.title == "showman")
+            #expect(
+                document.cues.map(\.kind) == [
+                    .clip(Clip(file: "01_a.mp4"), folder.appendingPathComponent("01_a.mp4")),
+                    .clip(Clip(file: "02_b.mp4"), folder.appendingPathComponent("02_b.mp4")),
+                ])
+            #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted() == before)
+        }
+    }
+
+    @Test func loadReadOnlyPrefersAFolderMovieFileAndLoadsFilesLikeLoad() throws {
+        try withTempDir { dir in
+            let folder = dir.appendingPathComponent("showman")
+            try write("", to: folder.appendingPathComponent("01_a.mp4"))
+            let file = ShowLoader.movieFile(inFolder: folder)
+            try ShowLoader.save(Movie(title: "Edited", items: [.clip(Clip(file: "01_a.mp4")), .black]), to: file)
+            let edited = try ShowDocument.loadReadOnly(folder)
+            #expect(edited.title == "Edited")
+            #expect(edited.cues.count == 2)
+            #expect(edited == (try ShowDocument.load(folder)))
+
+            let concert = dir.appendingPathComponent("gala.concert.json")
+            try ShowLoader.save(Concert(title: "Gala", items: [.black]), to: concert)
+            #expect(try ShowDocument.loadReadOnly(concert) == ShowDocument.load(concert))
+            #expect(try ShowDocument.loadReadOnly(file) == ShowDocument.load(file))
+        }
+    }
+
+    @Test func loadReadOnlyReportsAMissingShow() throws {
+        try withTempDir { dir in
+            let missing = dir.appendingPathComponent("gone.concert.json")
+            #expect(throws: ShowError.fileMissing(missing)) { try ShowDocument.loadReadOnly(missing) }
+        }
+    }
+
     @Test func newConcertNamesItsFileAndNeverOverwrites() throws {
         try withTempDir { dir in
             for name in ["Gala", "Gala.json", "Gala.concert.json"] {

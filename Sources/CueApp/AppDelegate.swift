@@ -35,7 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             reason: "Projector output must stay on during a show"
         )
         installMainMenu()
-        let argument = CommandLine.arguments.dropFirst().first { !$0.hasPrefix("-") }
+        let argument = LaunchArguments.showPath(Array(CommandLine.arguments.dropFirst()))
         // Read before the model writes cleanExit = false over it.
         let saved = StateFile.load()
         let plan = Recovery.plan(from: saved, launchArgument: argument.map(StateFile.showPath))

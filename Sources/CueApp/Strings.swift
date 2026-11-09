@@ -403,6 +403,7 @@ struct Strings {
             pick(
                 "Nincs ilyen sorszámú logó a műsorban, helyette fekete lesz",
                 "The show has no logo with this number, shows black instead")
+        case (.emptyShow, _): pick("A műsor üres", "The show has no cues")
         case (.projector, .ok): pick("Projektor csatlakoztatva", "Projector connected")
         case (.projector, _): pick("Nincs projektor", "No projector")
         case (.mirrored, _): mirroring

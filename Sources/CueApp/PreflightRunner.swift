@@ -1,4 +1,5 @@
 import AVFoundation
+import AppKit
 import CoreGraphics
 import CueCore
 import IOKit.ps
@@ -26,6 +27,10 @@ enum PreflightRunner {
             Log.deferred("probe \(url.lastPathComponent) failed: \(error.localizedDescription)")
         }
         return probe
+    }
+
+    static func logoImage(at url: URL) -> CGImage? {
+        NSImage(contentsOf: url)?.cgImage(forProposedRect: nil, context: nil, hints: nil)
     }
 
     static func system(output: OutputStatus?, availableHz: [Double], soundDevice: String?) -> SystemProbe {

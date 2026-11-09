@@ -24,6 +24,15 @@ build/Attacca.app/Contents/MacOS/Attacca build/samples/samples.concert.json   # 
 build/Attacca.app/Contents/MacOS/Attacca                                     # reopens the last show
 ```
 
+Check a show without the UI (no windows, writes nothing; JSON report on stdout):
+
+```sh
+build/Attacca.app/Contents/MacOS/Attacca --check ~/Movies/Gala/gala.concert.json   # or a .movie.json or a clip folder
+make check SHOW=~/Movies/Gala/gala.concert.json                                   # same, needs `make app` first
+```
+
+Exit codes: 0 ok, 1 warnings (still plays), 2 a clip can't play, 3 the show itself can't be loaded, 64 bad arguments.
+
 The output goes to the external display picked on the control screen (else the first external one) and never to the
 laptop panel. Files (folder names follow `app.env`):
 

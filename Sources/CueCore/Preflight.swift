@@ -70,14 +70,16 @@ public struct SystemProbe: Equatable, Sendable {
     }
 }
 
-public enum Severity: Sendable {
+public enum Severity: String, Sendable {
     case ok, warn, block
 }
 
 public struct Finding: Equatable, Sendable {
-    public enum Kind: Equatable, Sendable {
+    public enum Kind: String, Equatable, Sendable {
         case fileMissing, notPlayable, noVideo, size, frameRate, length, plannedEnd
         case logo, logoNumber
+        // Only `--check` reports it; an empty show is normal while editing.
+        case emptyShow
         case projector, mirrored, refreshRate, betterRefreshRate, power, spaces, sound
     }
 
@@ -145,6 +147,13 @@ public enum Preflight {
             default:
                 return []
             }
+        }
+    }
+
+    // A logo that fails to load shows black; `loaded[i]` says whether `logos[i]` did.
+    public static func evaluate(logos: [URL], loaded: [Bool]) -> [Finding] {
+        zip(logos, loaded).enumerated().compactMap { index, entry in
+            entry.1 ? nil : Finding(severity: .warn, kind: .logo, detail: "\(index + 1) · \(entry.0.lastPathComponent)")
         }
     }
 
