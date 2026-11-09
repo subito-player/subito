@@ -73,6 +73,16 @@ public struct ShowState: Equatable, Sendable {
     public static let confirmWindow: TimeInterval = 3
     public static let quitClickWindow: TimeInterval = 5
     public static let parkEndMargin: Double = 0.5
+    public static let logoFade: TimeInterval = 0.5
+
+    // Only a logo coming over the picture or leaving it fades; GO, black and logo-to-logo swaps cut.
+    public static func fadesCover(from old: Cover?, to new: Cover?, withGo: Bool) -> Bool {
+        guard !withGo else { return false }
+        switch (old, new) {
+        case (nil, .logo), (.logo, nil): return true
+        default: return false
+        }
+    }
 
     public private(set) var cues: [Cue]
     public private(set) var liveIndex: Int?
