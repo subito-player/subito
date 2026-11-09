@@ -183,5 +183,9 @@ per-clip notes, Windows.
 
 ## To verify on hardware before Friday
 
-Shielding level covers notification banners and volume/brightness OSD; behaviour with "separate Spaces" on and off;
-projector Hz list; HDMI unplug/replug with output live; GO switch time and no black frame on TV and projector.
+Verified 2026-11-09 (owner desk, macOS 27.2, output on the main external display): the shielding-level black window
+stays black through Cmd+Tab, window drags, Mission Control, Spaces switches, a fullscreen app on another display,
+notification banners, volume/brightness HUD, Spotlight and Esc.
+
+Still open: behaviour with "separate Spaces" off; projector Hz list; HDMI unplug/replug with output live; GO switch
+time and no black frame on TV and projector.
