@@ -21,7 +21,7 @@ time. Note every surprise in the log at the bottom; it drives v0.2.
    click it for the list, tick the manual checks.
 5. Editor (rehearsal mode): Szerkesztés, check the clip order, set planned end and tail on one clip (markers move),
    add a 20-minute break with countdown between the two halves, add Logo 1 at the end. Relaunch: same show.
-6. Advanced view (Cmd+Opt+D): GO times fill in (expect well under 100 ms), memory against launch. Cheat sheet button:
+6. Advanced view (Ctrl+Opt+D): GO times fill in (expect well under 100 ms), memory against launch. Cheat sheet button:
    print it for the operator. Then a 200-switch stress run watching the projector; any key stops it.
 7. Concert mode: click Koncert twice. Red banner, Dock and menu bar gone, Cmd+Tab blocked, M refused. Unlock with two
    clicks (orange), Lock again.

@@ -85,7 +85,7 @@ disappears and the screen holds. Rendered content, not UI.
 | Up/Down, keypad -/+ | arm previous/next item | 0 to 9 | arm clip with that number in current movie |
 | Home (Fn+Left) | restart live clip | M | mute instantly; sound on needs a 2nd press within 3 s (rehearsal only) |
 | Esc | nothing | Cmd+Q | quit (press twice; concert: press twice + click) |
-| Cmd+Opt+D | toggle Advanced view | | |
+| Ctrl+Opt+D | toggle Advanced view | | |
 
 Last key and its action are shown in the control window.
 
@@ -116,7 +116,7 @@ smaller "to clip end"; button row with every key action and its key; status line
 names). Window fills the laptop screen so there is nothing else to click. If the app loses focus: big red "keys not
 reaching the app, click here" banner.
 
-**Advanced view (Cmd+Opt+D, for the owner):** log tail, key-to-switch timings, projector modes, memory use (now and
+**Advanced view (Ctrl+Opt+D, for the owner):** log tail, key-to-switch timings, projector modes, memory use (now and
 at launch), stress runner (random GO/BLACK/LOGO/arm, rehearsal only, any key stops it), cheat sheet, key map and log
 folder buttons. Per-clip file details are in the preflight panel and the log.
 
@@ -136,8 +136,13 @@ in the cue list. System checks re-run on display, sound device and power changes
 **Projector unplugged:** hide output window at the start of any display reconfiguration (macOS reports it for every
 display, so we can't tell which one is going away), never let macOS move it to the laptop. Cost: a brief desktop
 flash on the projector during any reconfiguration, hence the black wallpaper. Red status on control. Playback
-continues. Output display: the one picked on the control screen (vendor, model, serial) when present, else the first
-external display; attaching never changes the saved pick. Re-show output in the current state when it returns.
+continues. Control screen: the built-in panel, or the main display when there is none (lid closed, Mac mini). Output
+display: the one picked on the control screen (vendor, model, serial) when present, else the first other display;
+never the control screen; one display only means no output. Attaching never changes the saved pick. Re-show output in
+the current state when it returns.
+
+**Parked GO:** a clip armed at a position (parked, or recovered) is ready for GO only after the seek to that position
+has finished, so GO can never flash frame 0.
 
 **Quitting:** only through the confirmed press-twice quit. Dock Quit asks like Cmd+Q; logout and restart for updates
 are refused while the app runs.

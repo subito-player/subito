@@ -12,7 +12,7 @@ Spec: `docs/design.md`. Swift tools 6.0, macOS 14 min, no deps. `CueCore` Swift 
 6. **Safety.** `Preflight.swift` (AVURLAsset checks, display, mirror, power, Hz, Spaces, sound device), `Log.swift`, `Recovery.swift` (state every 1 s, relaunch black + armed at position).
 7. **Editor + modes.** Add/delete/reorder/rename, black/break/logo/movie items, clip fields, autosave; rehearsal/concert toggle, emergency unlock, live item protected, concert mute.
    **Checkpoint C: branch + PR (`docs/development.md`).**
-8. **Polish.** `Strings.swift` HU/EN table + toggle, cheat sheet HTML from keymap, Advanced view (Cmd+Opt+D, log tail, timings, modes, memory, stress runner).
+8. **Polish.** `Strings.swift` HU/EN table + toggle, cheat sheet HTML from keymap, Advanced view (Ctrl+Opt+D, log tail, timings, modes, memory, stress runner).
 9. **Docs.** `docs/operator-checklist.md` (HU+EN), `docs/rehearsal-test.md`, refresh-rate + first-run notes. Whole-branch review (reviewer agent), fix, `make test && make app`.
    **Checkpoint D: branch + PR (`docs/development.md`).**
 

@@ -30,7 +30,7 @@ laptop panel. Files (folder names follow `app.env`):
 - Log: `~/Library/Logs/Attacca/YYYY-MM-DD.log`
 - State (crash recovery, last show, mode): `~/Library/Application Support/me.blint.attacca/state.json`
 - Key map (edit, then relaunch): `~/Library/Application Support/me.blint.attacca/keymap.json`
-- Cheat sheet (Advanced view, Cmd+Opt+D): `~/Library/Application Support/me.blint.attacca/cheatsheet.html`
+- Cheat sheet (Advanced view, Ctrl+Opt+D): `~/Library/Application Support/me.blint.attacca/cheatsheet.html`
 
 A downloaded (quarantined) build opens via System Settings > Privacy & Security > Open Anyway, or
 `xattr -dr com.apple.quarantine <app>`.

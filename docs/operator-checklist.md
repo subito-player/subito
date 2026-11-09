@@ -10,6 +10,10 @@ Print this page. Hungarian first, English below each line. (Draft translation: o
    Black wallpaper on every display, the projector included. System Settings > Wallpaper > black colour.
 3. **"A kijelzők külön Spaces-ben" bekapcsolva** (alapértelmezés). Rendszerbeállítások > Asztal és Dock.
    "Displays have separate Spaces" on (default). System Settings > Desktop & Dock.
+4. **A műsor mappája a Filmek mappában** (nem az Asztalon, a Dokumentumokban vagy külső lemezen), és minden új
+   programverzió után egyszer nyisd meg a műsort, és engedélyezd a hozzáférést, ha a gép kérdezi.
+   Show folder inside Movies (not Desktop, Documents or an external drive), and after every new app version open the
+   show once and allow access if macOS asks, so no permission prompt can appear during a show.
 
 ## Minden előadás előtt / Before every show
 
