@@ -10,7 +10,9 @@ time. Note every surprise in the log at the bottom; it drives v0.2.
 3. On the real projector, with the frame counter of the sample clips visible:
    1. GO through every cue. Expect no black frame and no flash between clips (frame counter jumps straight to the
       next clip). `grep switch ~/Library/Logs/Attacca/*.log` shows key-to-switch times.
-   2. B, B, L, Shift+L, L during a clip: instant cuts, clip keeps running underneath.
+   2. B, B during a clip: instant cuts. L, L: the logo fades in and out (0.5 s). Shift+L while logo 1 is up: instant
+      swap. GO while a logo is up: instant cut, no logo dissolving over the new clip. Mash L: always ends fully logo or
+      fully picture. The clip keeps running underneath throughout.
    3. Space, arrows, Home, Opt+Right on the next clip, then GO: starts from the parked point. Park and GO within a
       frame or two: the frame counter must start at the parked frame, never show the previous one.
    4. Let a clip end: last frame holds. GO to the break: countdown, title holds at 0:00.

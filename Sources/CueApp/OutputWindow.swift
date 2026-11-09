@@ -17,6 +17,7 @@ final class OutputWindow: NSWindow {
         .canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone,
     ]
     private static let windowedSize = NSSize(width: 960, height: 540)
+    private static let fadeKey = "coverFade"
 
     private(set) var presentation = OutputPresentation.fullscreen
     private var windowedFrame: NSRect?
@@ -149,14 +150,35 @@ final class OutputWindow: NSWindow {
             baseLogo.contents = logo
             baseLogo.isHidden = logo == nil
             breakLayer.isHidden = !breakScreen
+            // A new base ends a cover fade, so nothing ever dissolves over the item GO brings in.
+            coverLogo.removeAnimation(forKey: Self.fadeKey)
         }
     }
 
-    func showCover(logo: CGImage?, black: Bool) {
+    // Model values are always the final state; a fade only animates the cover logo's opacity towards them.
+    func showCover(logo: CGImage?, black: Bool, fade: TimeInterval) {
         withoutAnimation {
-            coverLogo.contents = logo
-            coverLogo.isHidden = logo == nil
+            let from: Float = fade > 0 && !coverLogo.isHidden ? coverLogo.presentation()?.opacity ?? coverLogo.opacity : 0
+            coverLogo.removeAnimation(forKey: Self.fadeKey)
             coverBlack.isHidden = !black
+            guard fade > 0 else {
+                coverLogo.contents = logo
+                coverLogo.isHidden = logo == nil
+                coverLogo.opacity = 1
+                return
+            }
+            // Fading out keeps the old image until the layer is transparent.
+            if let logo { coverLogo.contents = logo }
+            let to: Float = logo == nil ? 0 : 1
+            coverLogo.isHidden = false
+            coverLogo.opacity = to
+            // A zero-length CAAnimation runs for the default 0.25 s, so none is added.
+            guard from != to else { return }
+            let animation = CABasicAnimation(keyPath: "opacity")
+            animation.fromValue = from
+            animation.toValue = to
+            animation.duration = fade * Double(abs(to - from))
+            coverLogo.add(animation, forKey: Self.fadeKey)
         }
     }
 

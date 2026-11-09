@@ -28,6 +28,10 @@ final class PlaybackEngine: Player {
     private let playerB = AVPlayer()
     private var logos: [CGImage?] = []
     private var base: Base = .black
+    // What the cover layers show, a logo that cannot load being black.
+    private var shownCover: Cover?
+    // True while a GO's effects run, so its cover change cuts in the same transaction as the new base.
+    private var applyingGo = false
     private var breakTimer: Timer?
     private var jobs: [Slot: LoadJob] = [:]
     // Bumped by every load and seek, so a superseded seek never reports the armed clip ready.
@@ -93,7 +97,9 @@ final class PlaybackEngine: Player {
     @discardableResult
     func apply(_ effects: [Effect], for label: String, receivedAt start: TimeInterval) -> Double? {
         let loads = effects.filter(\.isLoad)
+        applyingGo = effects.contains(where: \.isShow)
         withoutAnimation { perform(effects.filter { !$0.isLoad }) }
+        applyingGo = false
         let ms = (ProcessInfo.processInfo.systemUptime - start) * 1000
         if !loads.isEmpty {
             CATransaction.flush()
@@ -204,15 +210,11 @@ final class PlaybackEngine: Player {
     }
 
     func setCover(_ cover: Cover?) {
-        switch cover {
-        case nil:
-            window.showCover(logo: nil, black: false)
-        case .black:
-            window.showCover(logo: nil, black: true)
-        case .logo(let number):
-            let image = logo(number)
-            window.showCover(logo: image, black: image == nil)
-        }
+        let image: CGImage? = if case .logo(let number) = cover { logo(number) } else { nil }
+        let shown: Cover? = cover != nil && image == nil ? .black : cover
+        let fade = ShowState.fadesCover(from: shownCover, to: shown, withGo: applyingGo)
+        window.showCover(logo: image, black: shown == .black, fade: fade ? ShowState.logoFade : 0)
+        shownCover = shown
     }
 
     func setMuted(_ muted: Bool) {
@@ -372,6 +374,10 @@ private final class LoadJob {
 extension Effect {
     fileprivate var isLoad: Bool {
         if case .load = self { true } else { false }
+    }
+
+    fileprivate var isShow: Bool {
+        if case .show = self { true } else { false }
     }
 
     fileprivate var isSwitch: Bool {

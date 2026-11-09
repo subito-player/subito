@@ -295,6 +295,30 @@ extension ShowState {
     }
 }
 
+@Suite struct CoverFadeTests {
+    @Test func logoOnAndOffFadeOverThePicture() {
+        #expect(ShowState.fadesCover(from: nil, to: .logo(1), withGo: false))
+        #expect(ShowState.fadesCover(from: nil, to: .logo(2), withGo: false))
+        #expect(ShowState.fadesCover(from: .logo(1), to: nil, withGo: false))
+        #expect(ShowState.fadesCover(from: .logo(2), to: nil, withGo: false))
+    }
+
+    @Test func blackAndEveryCoverSwapCut() {
+        let cuts: [(Cover?, Cover?)] = [
+            (nil, .black), (.black, nil), (.logo(1), .black), (.black, .logo(2)), (.logo(1), .logo(2)),
+            (.logo(2), .logo(1)),
+        ]
+        for (old, new) in cuts {
+            let change = "\(String(describing: old)) to \(String(describing: new))"
+            #expect(!ShowState.fadesCover(from: old, to: new, withGo: false), "\(change)")
+        }
+    }
+
+    @Test func goClearingALogoCoverCuts() {
+        #expect(!ShowState.fadesCover(from: .logo(1), to: nil, withGo: true))
+    }
+}
+
 @Suite struct ParkTests {
     @Test func onlyAnArmedClipCanBeParked() {
         var state = ShowState.loaded()
