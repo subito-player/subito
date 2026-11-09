@@ -83,7 +83,7 @@ disappears and the screen holds. Rendered content, not UI.
 | Left/Right | seek live 5 s | Shift+Left/Right | seek live 30 s |
 | Opt+Left/Right | park armed 5 s | Opt+Shift+Left/Right | park armed 30 s |
 | Up/Down, keypad -/+ | arm previous/next item | 0 to 9 | arm clip with that number in current movie |
-| Home (Fn+Left) | restart live clip | M | mute toggle (rehearsal only, press twice) |
+| Home (Fn+Left) | restart live clip | M | mute instantly; sound on needs a 2nd press within 3 s (rehearsal only) |
 | Esc | nothing | Cmd+Q | quit (press twice; concert: press twice + click) |
 | Cmd+Opt+D | toggle Advanced view | | |
 
