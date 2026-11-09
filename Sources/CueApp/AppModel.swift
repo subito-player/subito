@@ -1,4 +1,3 @@
-import AVFoundation
 import AppKit
 import CueCore
 import Observation
@@ -32,6 +31,7 @@ enum OutputChoice: Equatable {
 
 enum Banner: Equatable {
     case focusLost
+    case filePicker
     case confirmOutput(OutputChoice)
     case confirm(Notice)
     case noProjector
@@ -42,11 +42,22 @@ enum Problem: Equatable {
     case keyMap(String)
 }
 
+// Shown from a crash relaunch until the first GO.
+enum RecoveryNotice: Equatable {
+    case recovered(index: Int?, position: Double)
+    case skipped
+}
+
+enum ManualCheck: CaseIterable {
+    case focus, updates, wallpaper, backup
+}
+
 private struct LoadedShow {
-    var title: String?
-    var cues: [Cue] = []
+    var url: URL
+    var title: String
+    var cues: [Cue]
     var logos: [URL] = []
-    var movieTitles: [String] = []
+    var movieTitles: [String]
 }
 
 @MainActor
@@ -56,9 +67,9 @@ final class AppModel {
     static let tickSeconds: TimeInterval = 0.1
 
     let engine: PlaybackEngine
-    let title: String?
+    private(set) var title: String?
     // Indexed by Cue.movieIndex.
-    let movieTitles: [String]
+    private(set) var movieTitles: [String] = []
 
     var lang: Lang {
         didSet {
@@ -84,6 +95,13 @@ final class AppModel {
     private(set) var liveTime: PlayTime?
     private(set) var armedTime: PlayTime?
     private(set) var breakCountdown: String?
+    private(set) var showFindings: [Finding] = []
+    private(set) var systemFindings: [Finding] = []
+    private(set) var checking = false
+    private(set) var preflightOpen = false
+    private(set) var recoveryNotice: RecoveryNotice?
+    var manualChecks: Set<ManualCheck> = []
+    var filePickerOpen = false
 
     @ObservationIgnored var onOutputChange: () -> Void = {}
     @ObservationIgnored private(set) var quitConfirmed = false
@@ -93,21 +111,17 @@ final class AppModel {
     @ObservationIgnored private var watcher: DisplayWatcher?
     @ObservationIgnored private var cursorGuard: CursorGuard?
     @ObservationIgnored private var timer: Timer?
+    @ObservationIgnored private var showURL: URL?
+    @ObservationIgnored private var showCheck: Task<Void, Never>?
+    @ObservationIgnored private var stateSavedAt: TimeInterval = 0
+    @ObservationIgnored private var launchPath: String?
+    @ObservationIgnored private var recoveries: Int
+    @ObservationIgnored private var refreshRates: [CGDirectDisplayID: [Double]] = [:]
 
-    init(showPath: String?) {
+    // recoveries: the consecutive recovered-launch count this launch writes until the first GO.
+    init(plan: LaunchPlan, recoveries: Int) {
         let lang = Lang.saved
         var problems: [Problem] = []
-        var show = LoadedShow()
-        if let showPath {
-            do {
-                show = try Self.loadShow(showPath)
-            } catch {
-                let name = URL(fileURLWithPath: showPath).lastPathComponent
-                let reason = (error as? ShowError)?.description ?? "\(name): \(error.localizedDescription)"
-                Log.info("error: \(reason)")
-                problems.append(.show(reason))
-            }
-        }
         var keyMap: KeyMap?
         do {
             keyMap = try KeyMap(json: Data(KeyMap.defaultJSON.utf8))
@@ -118,9 +132,8 @@ final class AppModel {
         self.lang = lang
         self.keyMap = keyMap
         self.problems = problems
-        title = show.title
-        movieTitles = show.movieTitles
-        engine = PlaybackEngine(logos: show.logos, defaultBreakTitle: Strings(lang: lang).breakTitle)
+        self.recoveries = recoveries
+        engine = PlaybackEngine(defaultBreakTitle: Strings(lang: lang).breakTitle)
 
         engine.onEvent = { [weak self] command in self?.send(command) }
         engine.onLoadError = { [weak self] _, url, message, warning in
@@ -130,11 +143,15 @@ final class AppModel {
         cursorGuard = CursorGuard { [weak self] in self?.watcher?.outputDisplay }
         refreshDisplays()
         audioDevice = AudioOutput.defaultDeviceName()
-        AudioOutput.observeDefaultDevice { [weak self] in self?.audioDevice = AudioOutput.defaultDeviceName() }
+        AudioOutput.observeDefaultDevice { [weak self] in
+            self?.audioDevice = AudioOutput.defaultDeviceName()
+            self?.checkSystem()
+        }
+        PreflightRunner.observePowerSource { [weak self] in self?.checkSystem() }
 
-        // init(cues:) cannot return effects, so the first arm reaches the engine this way.
-        run(state.replaceCues(show.cues), label: "open", receivedAt: ProcessInfo.processInfo.systemUptime)
-        loadDurations(of: show.cues)
+        start(plan)
+        checkSystem()
+        saveState()
         let timer = Timer(timeInterval: Self.tickSeconds, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
@@ -161,6 +178,7 @@ final class AppModel {
     // Pending confirmations outrank the no-projector banner because they last only 3 s.
     var banner: Banner? {
         if focusLost { return .focusLost }
+        if filePickerOpen { return .filePicker }
         if let outputPending { return .confirmOutput(outputPending) }
         if let pending { return .confirm(pending) }
         return output == .missing ? .noProjector : nil
@@ -177,6 +195,25 @@ final class AppModel {
         case .automatic: s.automatic
         case .display(let id): s.display(displays.first { $0.id == id }?.name, id: id)
         }
+    }
+
+    var findings: [Finding] {
+        showFindings + systemFindings
+    }
+
+    var blockedCues: Set<Int> {
+        Set(showFindings.filter { $0.severity == .block }.compactMap(\.cueIndex))
+    }
+
+    // Clips the engine already reported stay out of the count, so one bad file is not announced twice.
+    var blockedClipCount: Int {
+        let reported = Set(loadErrors.filter { !$0.warning }.map(\.url))
+        return blockedCues.filter { index in
+            guard state.cues.indices.contains(index), case .clip(_, let url) = state.cues[index].kind else {
+                return false
+            }
+            return !reported.contains(url)
+        }.count
     }
 
     func cue(for url: URL) -> Cue? {
@@ -198,6 +235,62 @@ final class AppModel {
             durations[url] = duration
         }
         run(state.handle(command, now: Date()), label: "\(command)", receivedAt: receivedAt)
+        if recoveryNotice != nil || recoveries > 0, state.liveIndex != nil {
+            recoveryNotice = nil
+            recoveries = 0
+            saveState()
+        }
+    }
+
+    // Replaces the cue list; the projector keeps whatever it shows until the next GO.
+    @discardableResult
+    func open(_ path: String) -> Bool {
+        problems.removeAll { if case .show = $0 { true } else { false } }
+        do {
+            let show = try Self.loadShow(path)
+            title = show.title
+            movieTitles = show.movieTitles
+            showURL = show.url
+            recoveryNotice = nil
+            loadErrors.removeAll()
+            engine.setLogos(show.logos)
+            Log.info("open \(show.url.path)")
+            run(state.replaceCues(show.cues), label: "open", receivedAt: ProcessInfo.processInfo.systemUptime)
+            checkShow(logos: show.logos)
+            return true
+        } catch {
+            let name = URL(fileURLWithPath: path).lastPathComponent
+            let reason = (error as? ShowError)?.description ?? "\(name): \(error.localizedDescription)"
+            Log.info("error: \(reason)")
+            problems.append(.show(reason))
+            return false
+        }
+    }
+
+    func togglePreflight() {
+        preflightOpen.toggle()
+        if preflightOpen { checkSystem() }
+    }
+
+    func saveState(cleanExit: Bool = false) {
+        stateSavedAt = ProcessInfo.processInfo.systemUptime
+        // Until the launch's show opens, the file holds the only copy of what to recover.
+        if showURL == nil, launchPath != nil { return }
+        var liveIndex = state.liveIndex
+        var position = liveIndex == nil ? nil : liveSlot.flatMap { engine.time($0)?.position }
+        // Before the first GO after a recovery, the operator's latest park is what a second crash brings back.
+        if liveIndex == nil, case .recovered(.some, _)? = recoveryNotice {
+            liveIndex = state.armedIndex
+            position = state.armedAt
+        }
+        let snapshot = RecoveryState(
+            showPath: showURL?.path, mode: state.mode, liveIndex: liveIndex, livePosition: position,
+            cover: state.cover, cleanExit: cleanExit, recoveries: cleanExit ? 0 : recoveries, savedAt: Date())
+        if cleanExit {
+            StateFile.saveNow(snapshot)
+        } else {
+            StateFile.save(snapshot)
+        }
     }
 
     // Held keys must not repeat GO or seeks; every key is swallowed so nothing beeps on stage.
@@ -245,6 +338,7 @@ final class AppModel {
             self.notice = notice
             noticeAt = Date()
         }
+        saveState()
         tick()
         if effects.contains(.quit) {
             quitConfirmed = true
@@ -265,6 +359,101 @@ final class AppModel {
             countdown = PlaybackEngine.breakCountdown(item, startedAt: startedAt, now: now)
         }
         update(\.breakCountdown, countdown)
+        if ProcessInfo.processInfo.systemUptime - stateSavedAt >= 1 { saveState() }
+    }
+
+    private func start(_ plan: LaunchPlan) {
+        switch plan {
+        case .empty:
+            return
+        case .open(let path):
+            launchPath = path
+            open(path)
+        case .skipRecovery(let path, let mode):
+            launchPath = path
+            guard open(path) else { return }
+            state.restoreMode(mode)
+            recoveryNotice = .skipped
+            Log.info("recovery skipped after \(recoveries) recovered launches crashed: \(path), mode \(mode)")
+        case .recover(let path, let mode, let index, let position):
+            launchPath = path
+            guard open(path) else { return }
+            state.restoreMode(mode)
+            let armed = index.flatMap { state.cues.indices.contains($0) ? $0 : nil }
+            recoveryNotice = .recovered(index: armed, position: position)
+            Log.info("recovered \(path): mode \(mode), arming \(armed.map(String.init) ?? "nothing") at \(position)")
+            guard let armed else { return }
+            let now = Date()
+            let effects = state.handle(.arm(index: armed), now: now) + state.handle(.parkArmedAt(position), now: now)
+            run(effects, label: "recover", receivedAt: ProcessInfo.processInfo.systemUptime)
+        }
+    }
+
+    // Probes run off the main thread; a newer show cancels the older check.
+    private func checkShow(logos: [URL]) {
+        showCheck?.cancel()
+        let cues = state.cues
+        let urls = Set(cues.compactMap { cue -> URL? in if case .clip(_, let url) = cue.kind { url } else { nil } })
+        let logoFindings = logos.indices.compactMap { index -> Finding? in
+            guard engine.logo(index + 1) == nil else { return nil }
+            return Finding(severity: .warn, kind: .logo, detail: "\(index + 1) · \(logos[index].lastPathComponent)")
+        }
+        showFindings = []
+        checking = true
+        showCheck = Task { [weak self] in
+            var probes: [URL: ClipProbe] = [:]
+            await withTaskGroup(of: (URL, ClipProbe).self) { group in
+                for url in urls {
+                    group.addTask { (url, await PreflightRunner.probe(url)) }
+                }
+                for await (url, probe) in group {
+                    probes[url] = probe
+                    self?.noteDuration(url, probe.duration)
+                }
+            }
+            guard !Task.isCancelled, let self else { return }
+            self.showChecked(Preflight.evaluate(cues: cues, probes: probes) + logoFindings, probes: probes)
+        }
+    }
+
+    private func showChecked(_ findings: [Finding], probes: [URL: ClipProbe]) {
+        for (url, probe) in probes.sorted(by: { $0.key.path < $1.key.path }) {
+            Log.deferred(
+                "probe \(url.lastPathComponent): exists \(probe.exists), playable \(probe.playable), "
+                    + "\(probe.width)x\(probe.height), \(probe.fps) fps, \(probe.codec), \(probe.duration) s, "
+                    + "video \(probe.hasVideo), audio \(probe.hasAudio)")
+        }
+        for finding in findings {
+            let cue = finding.cueIndex.map(String.init) ?? "-"
+            Log.deferred("preflight \(finding.severity) cue \(cue) \(finding.kind): \(finding.detail)")
+        }
+        let blocks = findings.filter { $0.severity == .block }.count
+        let warnings = findings.filter { $0.severity == .warn }.count
+        Log.info("preflight show: \(probes.count) files, \(blocks) blocking, \(warnings) warnings")
+        showFindings = findings
+        checking = false
+    }
+
+    private func checkSystem() {
+        let rates = outputDisplay.map(rates(of:)) ?? []
+        let probe = PreflightRunner.system(output: output, availableHz: rates, soundDevice: audioDevice)
+        let findings = Preflight.evaluate(system: probe)
+        guard findings != systemFindings else { return }
+        systemFindings = findings
+        let summary = findings.map { "\($0.kind) \($0.severity)\($0.detail.isEmpty ? "" : " \($0.detail)")" }
+        Log.info("preflight system: \(summary.joined(separator: "; "))")
+    }
+
+    // Mode lists only change with a display reconfiguration, which clears the cache.
+    private func rates(of display: CGDirectDisplayID) -> [Double] {
+        if let cached = refreshRates[display] { return cached }
+        let rates = PreflightRunner.refreshRates(of: display)
+        refreshRates[display] = rates
+        return rates
+    }
+
+    private func noteDuration(_ url: URL, _ duration: Double) {
+        if duration.isFinite, duration > 0, durations[url] == nil { durations[url] = duration }
     }
 
     // Observation fires on every set, so unchanged values are skipped to keep the 10 Hz tick cheap.
@@ -280,6 +469,9 @@ final class AppModel {
         update(\.output, status)
         if case .attached = status { cursorGuard?.keepOffOutput() }
         refreshDisplays()
+        refreshRates = [:]
+        // The watcher's first report arrives from its own init; init checks once everything is set up.
+        if watcher != nil { checkSystem() }
         onOutputChange()
     }
 
@@ -292,18 +484,6 @@ final class AppModel {
     private func loadFailed(_ error: LoadError) {
         loadErrors.removeAll { $0.url == error.url }
         loadErrors.append(error)
-    }
-
-    private func loadDurations(of cues: [Cue]) {
-        var seen = Set<URL>()
-        for case .clip(_, let url) in cues.map(\.kind) where seen.insert(url).inserted {
-            Task { [weak self] in
-                guard let duration = try? await AVURLAsset(url: url).load(.duration), duration.seconds.isFinite,
-                    let self, self.durations[url] == nil
-                else { return }
-                self.durations[url] = duration.seconds
-            }
-        }
     }
 
     private static func loadShow(_ path: String) throws -> LoadedShow {
@@ -328,11 +508,13 @@ final class AppModel {
             return loaded.movies[ShowLoader.resolve(ref.file, relativeTo: url)]?.title ?? ref.file
         }
         return LoadedShow(
-            title: loaded.concert.title, cues: ShowLoader.flatten(loaded), logos: logos, movieTitles: movieTitles)
+            url: url, title: loaded.concert.title, cues: ShowLoader.flatten(loaded), logos: logos,
+            movieTitles: movieTitles)
     }
 
     private static func movieShow(_ movie: Movie, at url: URL) -> LoadedShow {
-        LoadedShow(title: movie.title, cues: ShowLoader.flatten(movie: movie, at: url), movieTitles: [movie.title])
+        LoadedShow(
+            url: url, title: movie.title, cues: ShowLoader.flatten(movie: movie, at: url), movieTitles: [movie.title])
     }
 }
 

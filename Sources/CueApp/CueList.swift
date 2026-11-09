@@ -7,6 +7,7 @@ struct CueList: View {
     var body: some View {
         let s = model.strings
         let state = model.state
+        let blocked = model.blockedCues
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -26,6 +27,7 @@ struct CueList: View {
                         }
                         CueRow(
                             number: s.number(cue), label: s.label(cue), meta: meta(cue),
+                            blocked: blocked.contains(index),
                             role: index == state.liveIndex ? .live : index == state.armedIndex ? .armed : nil
                         ) {
                             model.send(.arm(index: index))
@@ -66,6 +68,7 @@ private struct CueRow: View {
     let number: String
     let label: String
     let meta: String
+    let blocked: Bool
     let role: Role?
     let action: () -> Void
 
@@ -77,6 +80,7 @@ private struct CueRow: View {
                     .foregroundStyle(Palette.dim)
                     .frame(minWidth: 24, alignment: .leading)
                 Text(label).font(.system(size: 17)).lineLimit(1)
+                if blocked { Circle().fill(Palette.live).frame(width: 10, height: 10) }
                 Spacer(minLength: 8)
                 Text(meta).font(.system(size: 14).monospacedDigit()).foregroundStyle(Palette.dim)
             }

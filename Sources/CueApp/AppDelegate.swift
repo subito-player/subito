@@ -30,12 +30,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             reason: "Projector output must stay on during a show"
         )
         installMainMenu()
-        let model = AppModel(showPath: CommandLine.arguments.dropFirst().first { !$0.hasPrefix("-") })
+        let argument = CommandLine.arguments.dropFirst().first { !$0.hasPrefix("-") }
+        // Read before the model writes cleanExit = false over it.
+        let saved = StateFile.load()
+        let plan = Recovery.plan(from: saved, launchArgument: argument.map(StateFile.showPath))
+        Log.info("launch plan \(plan)")
+        let model = AppModel(plan: plan, recoveries: Recovery.recoveries(for: plan, from: saved))
         self.model = model
         let control = ControlWindow(model: model)
         controlWindow = control
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak model] event in
-            guard let model else { return event }
+        // The Open sheet gets its own keys, so its Enter can never fire GO; show keys pause meanwhile.
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak model, weak control] event in
+            guard let model, let control, event.window === control, control.attachedSheet == nil else { return event }
             return model.keyDown(event)
         }
         control.makeKeyAndOrderFront(nil)
@@ -51,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        if let model, model.quitConfirmed { model.saveState(cleanExit: true) }
         Log.info("terminate")
         Log.flush()
     }

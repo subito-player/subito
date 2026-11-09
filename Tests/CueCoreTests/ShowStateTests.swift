@@ -382,6 +382,15 @@ extension ShowState {
         #expect(state.muted)
     }
 
+    @Test func recoveryRestoresConcertWithoutAConfirmationAndSoundStaysLocked() {
+        var state = ShowState.loaded()
+        state.restoreMode(.concert)
+        #expect(state.mode == .concert)
+        #expect(state.pending == nil)
+        #expect(state.send(.toggleMute) == [.notice(.soundLockedInConcert)])
+        #expect(state.muted)
+    }
+
     @Test func modeSwitchNeedsTwoPressesAndLeavesTheOutputAlone() {
         var state = ShowState.clip1LiveOnA()
         state.send(.toggleCover(.black))

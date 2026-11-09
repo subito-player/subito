@@ -33,10 +33,11 @@ extension Color {
 struct ControlView: View {
     let model: AppModel
     let focusControl: () -> Void
+    let openShow: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            TopBar(model: model)
+            TopBar(model: model, openShow: openShow)
             BannerRow(model: model, focusControl: focusControl)
             GeometryReader { geometry in
                 HStack(spacing: 0) {
@@ -52,6 +53,9 @@ struct ControlView: View {
                     }
                     .padding(16)
                 }
+            }
+            .overlay(alignment: .bottomLeading) {
+                if model.preflightOpen { PreflightPanel(model: model).padding(12) }
             }
             StatusLine(model: model)
         }
@@ -93,6 +97,8 @@ private struct BannerRow: View {
                 Button(action: focusControl) { banner(s.focusLost, Palette.live) }
                     .buttonStyle(.plain)
                     .focusable(false)
+            case .filePicker?:
+                banner(s.filePicker, Palette.confirm)
             case .confirmOutput(let choice)?:
                 banner(s.confirmOutput(model.name(of: choice, s)), Palette.confirm)
             case .confirm(let notice)?:
@@ -124,7 +130,9 @@ private struct StatusLine: View {
 
     var body: some View {
         HStack(spacing: 16) {
-            message(model.strings).lineLimit(1)
+            Button(action: model.togglePreflight) { message(model.strings).lineLimit(1).contentShape(Rectangle()) }
+                .buttonStyle(.plain)
+                .focusable(false)
             Spacer(minLength: 0)
             OutputChips(model: model).fixedSize()
         }
@@ -139,16 +147,35 @@ private struct StatusLine: View {
     private func message(_ s: Strings) -> Text {
         if let notice = model.statusNotice { return Text(s.notice(notice)).foregroundStyle(Palette.warn) }
         let cue = { (url: URL) in model.cue(for: url).map(s.title) ?? url.lastPathComponent }
-        var parts: [(String, Color)] = model.problems.map { (s.problem($0), Palette.live) }
+        var parts: [(String, Color)] = []
+        switch model.recoveryNotice {
+        case .recovered(let index, let position)?:
+            let cues = model.state.cues
+            let live = index.flatMap { cues.indices.contains($0) ? cues[$0] : nil }
+            parts.append((s.recovered(live, at: position), Palette.warn))
+        case .skipped?:
+            parts.append((s.recoverySkipped, Palette.warn))
+        case nil:
+            break
+        }
+        parts += model.problems.map { (s.problem($0), Palette.live) }
         for error in model.loadErrors where !error.warning {
             parts.append((s.cannotPlay(cue(error.url), reason: error.message), Palette.live))
+        }
+        if model.blockedClipCount > 0 { parts.append((s.clipsCannotPlay(model.blockedClipCount), Palette.live)) }
+        // A missing projector already has its own line below.
+        for finding in model.systemFindings where finding.severity == .block && finding.kind != .projector {
+            parts.append((s.finding(finding), Palette.live))
         }
         for error in model.loadErrors where error.warning {
             parts.append((s.pictureUnconfirmed(cue(error.url)), Palette.warn))
         }
+        let warnings = model.findings.filter { $0.severity == .warn }.count
+        if warnings > 0 { parts.append((s.warnings(warnings), Palette.warn)) }
         if model.output == .missing { parts.append((s.noProjectorStatus, Palette.live)) }
         let showFailed = model.problems.contains { if case .show = $0 { true } else { false } }
         if model.state.cues.isEmpty, !showFailed { parts.append((s.noShow, Palette.warn)) }
+        if model.checking { parts.append((s.checking, Palette.dim)) }
         guard !parts.isEmpty else { return Text(s.allGood).foregroundStyle(Palette.ok) }
         return parts.dropFirst().reduce(Text(parts[0].0).foregroundStyle(parts[0].1)) { line, part in
             line + Text("  ·  ").foregroundStyle(Palette.dim) + Text(part.0).foregroundStyle(part.1)

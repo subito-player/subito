@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TopBar: View {
     let model: AppModel
+    let openShow: () -> Void
 
     var body: some View {
         let s = model.strings
@@ -18,6 +19,19 @@ struct TopBar: View {
                 .font(.system(size: 17, weight: .semibold))
                 .lineLimit(1)
                 .frame(minWidth: 140, alignment: .leading)
+            // Concert mode will hide this until editing is unlocked (plan task 7).
+            Button(action: openShow) {
+                Text(s.open)
+                    .font(.system(size: 15, weight: .semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 3)
+                    .background(Palette.raise, in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Palette.line))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .focusable(false)
+            .fixedSize()
             ProjectorStatus(model: model).frame(maxWidth: 280, alignment: .leading).layoutPriority(1)
             AudioBadge(model: model).frame(maxWidth: 300, alignment: .leading).layoutPriority(1)
             Spacer(minLength: 8)
@@ -40,7 +54,7 @@ private struct ProjectorStatus: View {
             switch model.output {
             case .attached(let name, let hz, let mirrored)?:
                 mirrored
-                    ? (Palette.warn, "\(s.projector(display(name), hz: hz)) · \(s.mirrored)", Palette.warn)
+                    ? (Palette.live, s.mirroring, Palette.live)
                     : (Palette.ok, s.projector(display(name), hz: hz), Palette.dim)
             case .missing?: (Palette.live, s.noProjector, Palette.live)
             case nil: (Palette.dim, "", Palette.dim)
@@ -49,7 +63,7 @@ private struct ProjectorStatus: View {
             Circle().fill(dot).frame(width: 10, height: 10)
             Text(text).foregroundStyle(ink).lineLimit(1)
         }
-        .font(.system(size: 15, weight: model.output == .missing ? .bold : .regular))
+        .font(.system(size: 15, weight: dot == Palette.live ? .bold : .regular))
     }
 
     private func display(_ name: String?) -> String {

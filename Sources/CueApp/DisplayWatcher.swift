@@ -87,7 +87,9 @@ final class DisplayWatcher {
         guard let display = pickOutput() else {
             outputDisplay = nil
             window.orderOut(nil)
-            report(.missing)
+            let mirror = Self.laptopMirror()
+            let hz = mirror.flatMap { CGDisplayCopyDisplayMode($0)?.refreshRate } ?? 0
+            report(mirror == nil ? .missing : .attached(name: nil, hz: hz, mirrored: true))
             return
         }
         outputDisplay = display
@@ -120,9 +122,19 @@ final class DisplayWatcher {
         UserDefaults.standard.array(forKey: savedKey) as? [Int]
     }
 
+    // A mirror of the laptop panel already shows the control screen, so it is never an output.
+    private static func laptopMirror() -> CGDirectDisplayID? {
+        let online = displays(CGGetOnlineDisplayList)
+        guard let builtIn = online.first(where: { CGDisplayIsBuiltin($0) != 0 }) else { return nil }
+        return online.first {
+            CGDisplayIsBuiltin($0) == 0 && CGDisplayPrimaryDisplay($0) == CGDisplayPrimaryDisplay(builtIn)
+        }
+    }
+
+    // Built-in from the online list: under hardware mirroring only one of the pair is active.
     private static func externalDisplays() -> [CGDirectDisplayID] {
         let displays = activeDisplays()
-        let builtIn = displays.first { CGDisplayIsBuiltin($0) != 0 }
+        let builtIn = Self.displays(CGGetOnlineDisplayList).first { CGDisplayIsBuiltin($0) != 0 }
         return displays.filter { display in
             guard CGDisplayIsBuiltin(display) == 0 else { return false }
             guard let builtIn else { return true }
@@ -139,10 +151,16 @@ final class DisplayWatcher {
     }
 
     static func activeDisplays() -> [CGDirectDisplayID] {
+        displays(CGGetActiveDisplayList)
+    }
+
+    private static func displays(
+        _ list: (UInt32, UnsafeMutablePointer<CGDirectDisplayID>?, UnsafeMutablePointer<UInt32>?) -> CGError
+    ) -> [CGDirectDisplayID] {
         var count: UInt32 = 0
-        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        guard list(0, nil, &count) == .success, count > 0 else { return [] }
         var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
-        guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return [] }
+        guard list(count, &displays, &count) == .success else { return [] }
         return Array(displays.prefix(Int(count)))
     }
 }

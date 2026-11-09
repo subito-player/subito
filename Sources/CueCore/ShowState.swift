@@ -4,7 +4,7 @@ public enum Slot: Sendable {
     case a, b
 }
 
-public enum Cover: Equatable, Sendable {
+public enum Cover: Codable, Equatable, Sendable {
     case black
     case logo(Int)
 }
@@ -16,7 +16,7 @@ public enum Base: Equatable, Sendable {
     case clip(Slot)
 }
 
-public enum Mode: Sendable {
+public enum Mode: String, Codable, Sendable {
     case rehearsal, concert
 }
 
@@ -92,6 +92,11 @@ public struct ShowState: Equatable, Sendable {
     // The slot the armed clip loads into, so a preview can show that player; nil unless a clip is armed.
     public var armedSlot: Slot? {
         armedClip?.slot
+    }
+
+    // Crash recovery: the mode was confirmed before the crash, and launch is muted anyway.
+    public mutating func restoreMode(_ mode: Mode) {
+        self.mode = mode
     }
 
     public mutating func replaceCues(_ cues: [Cue]) -> [Effect] {

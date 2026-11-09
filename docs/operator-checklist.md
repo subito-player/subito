@@ -15,16 +15,16 @@ Print this page. Hungarian first, English below each line. (Draft translation: o
 
 1. **Töltő bedugva.** / Power adapter plugged in.
 2. **Projektor HDMI bedugva, a projektor be van kapcsolva.** / Projector HDMI plugged in, projector on.
-3. **Projektor frissítési gyakoriság:** Rendszerbeállítások > Kijelzők > projektor > Frissítési gyakoriság: 23,98 / 24, vagy 47,95 / 48, vagy 71,93 / 72 Hz, ha van; különben 60 Hz.
-   Projector refresh rate: System Settings > Displays > projector > Refresh rate: 23.98 / 24, or 47.95 / 48, or 71.93 / 72 Hz if offered; else 60 Hz.
+3. **Projektor frissítési gyakoriság:** Rendszerbeállítások > Kijelzők > projektor > Frissítési gyakoriság: az első, ami van: 23,98, 47,95, 71,93, 24, 48, 72 Hz; különben 60 Hz. (Az ellenőrző panel is megmutatja.)
+   Projector refresh rate: System Settings > Displays > projector > Refresh rate: the first one offered of 23.98, 47.95, 71.93, 24, 48, 72 Hz; else 60 Hz. (The preflight panel shows it too.)
 4. **Ne zavarjanak (Fókusz) bekapcsolva.** Vezérlőközpont > Fókusz > Ne zavarjanak.
    Focus / Do Not Disturb on. Control Centre > Focus > Do Not Disturb.
 5. **Minden más program bezárva** (Üzenetek, Mail, böngésző).
    Every other app closed (Messages, Mail, browser).
 6. **Tartalék gép kész:** régi laptop bekapcsolva, 00-ás klip előkészítve, HDMI kapcsoló az új gépen.
    Backup ready: old laptop on, clip 00 ready, HDMI switch on the new Mac.
-7. **Program indítása.** A projektor fekete. Lent: "Minden rendben". Fent: projektor neve zöld, NÉMÍTVA.
-   Start the app. Projector black. Bottom line: "All good". Top: projector name green, MUTED.
+7. **Program indítása.** A projektor fekete. Lent: "Minden rendben" (ha nem, kattints rá: megmutatja, mi a baj). Fent: projektor neve zöld, NÉMÍTVA.
+   Start the app. Projector black. Bottom line: "All good" (if not, click it to see what is wrong). Top: projector name green, MUTED.
 8. **Koncert mód:** kattints kétszer a Koncert gombra. Nagy KONCERT felirat.
    Concert mode: click Concert twice. Big CONCERT banner.
 

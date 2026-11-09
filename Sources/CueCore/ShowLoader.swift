@@ -108,8 +108,12 @@ public enum ShowLoader {
         return Movie(title: folder.lastPathComponent, items: entries.map { .clip(Clip(file: $0.name)) })
     }
 
+    public static func movieFile(inFolder folder: URL) -> URL {
+        folder.appendingPathComponent(folder.lastPathComponent + ".movie.json")
+    }
+
     public static func importFolder(_ folder: URL) throws -> URL {
-        let url = folder.appendingPathComponent(folder.lastPathComponent + ".movie.json")
+        let url = movieFile(inFolder: folder)
         if FileManager.default.fileExists(atPath: url.path) { return url }
         try save(movie(fromFolder: folder), to: url)
         return url

@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 @MainActor
 final class ControlWindow: NSWindow {
@@ -20,7 +21,10 @@ final class ControlWindow: NSWindow {
         for kind: NSWindow.ButtonType in [.closeButton, .miniaturizeButton, .zoomButton] {
             standardWindowButton(kind)?.isHidden = true
         }
-        let host = NSHostingView(rootView: ControlView(model: model) { [weak self] in self?.takeFocus() })
+        let host = NSHostingView(
+            rootView: ControlView(
+                model: model, focusControl: { [weak self] in self?.takeFocus() },
+                openShow: { [weak self] in self?.chooseShow() }))
         // The window size comes from the screen, never from the SwiftUI content.
         host.sizingOptions = []
         contentView = host
@@ -59,13 +63,33 @@ final class ControlWindow: NSWindow {
         updateFocus()
     }
 
+    // A sheet stays on the control screen, never under the output window.
+    private func chooseShow() {
+        guard attachedSheet == nil else { return }
+        let s = model.strings
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.json]
+        panel.message = s.openMessage
+        panel.prompt = s.open
+        model.filePickerOpen = true
+        panel.beginSheetModal(for: self) { [weak self] response in
+            self?.model.filePickerOpen = false
+            guard response == .OK, let url = panel.url else { return }
+            self?.model.open(url.path)
+        }
+        updateFocus()
+    }
+
     private func takeFocus() {
         NSApp.activate()
         makeKeyAndOrderFront(nil)
     }
 
     private func updateFocus() {
-        let lost = !(NSApp.isActive && isKeyWindow)
+        let lost = !(NSApp.isActive && (isKeyWindow || attachedSheet != nil))
         if model.focusLost != lost { model.focusLost = lost }
     }
 }
