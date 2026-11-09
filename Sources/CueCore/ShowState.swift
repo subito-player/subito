@@ -38,6 +38,9 @@ public enum Command: Equatable, Sendable {
     case unlockEditing
     case lockEditing
     case requestQuit
+    // Concert only: the click on the quit banner after two Cmd+Q presses.
+    case confirmQuitByClick
+    // Also the engine's report that a park seek landed on the armed clip.
     case armedReady(Slot, URL, duration: Double)
     case liveEnded(Slot)
 }
@@ -50,6 +53,7 @@ public enum Notice: Equatable, Sendable {
     case confirmMode(Mode)
     case confirmUnlock
     case confirmQuit
+    case confirmQuitClick
 }
 
 public enum Effect: Equatable, Sendable {
@@ -67,6 +71,7 @@ public enum Effect: Equatable, Sendable {
 
 public struct ShowState: Equatable, Sendable {
     public static let confirmWindow: TimeInterval = 3
+    public static let quitClickWindow: TimeInterval = 5
     public static let parkEndMargin: Double = 0.5
 
     public private(set) var cues: [Cue]
@@ -189,13 +194,32 @@ public struct ShowState: Equatable, Sendable {
             editUnlocked = false
             return []
         case .requestQuit:
-            return confirm(.confirmQuit, now: now) ? [.quit] : [.notice(.confirmQuit)]
+            guard confirm(.confirmQuit, now: now) else { return [.notice(.confirmQuit)] }
+            guard mode == .concert else { return [.quit] }
+            // Keys alone never end a concert: two presses, then a click on the banner.
+            pending = .confirmQuitClick
+            pendingUntil = now.addingTimeInterval(Self.quitClickWindow)
+            return [.notice(.confirmQuitClick)]
+        case .confirmQuitByClick:
+            guard pending == .confirmQuitClick else { return [] }
+            pending = nil
+            pendingUntil = nil
+            return [.quit]
         case .armedReady(let slot, let url, let duration):
             guard let armed = armedClip, armed.slot == slot, armed.url == url else { return [] }
-            armedReady = true
+            // After the load, a report means the latest park seek landed.
+            guard armedDuration == nil else {
+                armedReady = true
+                return []
+            }
             armedDuration = duration
             armedAt = clampArmed(armedAt)
-            return armedAt > 0 ? [.seekTo(slot, armedAt)] : []
+            // GO waits for the parked frame, so it never shows frame 0 first.
+            guard armedAt > 0 else {
+                armedReady = true
+                return []
+            }
+            return [.seekTo(slot, armedAt)]
         case .liveEnded(let slot):
             guard slot == liveSlot else { return [] }
             liveAtEnd = true
@@ -273,11 +297,13 @@ public struct ShowState: Equatable, Sendable {
         return arm(match)
     }
 
-    // Before ready only the target moves; the matching armedReady seeks there.
+    // Before the load only the target moves; after it, GO waits until the engine reports this seek landed.
     private mutating func park(at time: Double) -> [Effect] {
         guard let armed = armedClip else { return [] }
         armedAt = clampArmed(time)
-        return armedReady ? [.seekTo(armed.slot, armedAt)] : []
+        guard armedDuration != nil else { return [] }
+        armedReady = false
+        return [.seekTo(armed.slot, armedAt)]
     }
 
     private func clampArmed(_ time: Double) -> Double {
@@ -332,6 +358,7 @@ extension Command {
         case .requestMode(let mode): .confirmMode(mode)
         case .unlockEditing: .confirmUnlock
         case .requestQuit: .confirmQuit
+        case .confirmQuitByClick: .confirmQuitClick
         default: nil
         }
     }

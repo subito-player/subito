@@ -6,11 +6,12 @@ import UniformTypeIdentifiers
 enum KeyResult: Equatable {
     case command(Command)
     case advanced
+    case stressStopped
     case nothing
 }
 
 struct LastKey: Equatable {
-    var name: String
+    var chord: KeyChord
     var result: KeyResult
 }
 
@@ -21,8 +22,11 @@ struct PlayTime: Equatable {
 
 struct LoadError: Equatable {
     var url: URL
-    var message: String
-    var warning: Bool
+    var failure: LoadFailure
+
+    var warning: Bool {
+        failure == .pictureUnconfirmed
+    }
 }
 
 enum OutputChoice: Equatable {
@@ -40,9 +44,11 @@ enum Banner: Equatable {
     case noProjector
 }
 
+// Only file names and numbers ride along, so Strings can say it in the operator's language.
 enum Problem: Equatable {
-    case show(String)
-    case keyMap(String)
+    // error nil: not a show-format problem, e.g. the file system refused.
+    case show(file: String, error: ShowError?)
+    case keyMap(KeyMapError)
     case save(file: String, reason: String)
 }
 
@@ -53,7 +59,7 @@ enum EditNotice: Error, Equatable {
     case emptyTitle
     case invalidTime
     case invalidMinutes
-    case cannotAddMovie(String)
+    case cannotAddMovie(file: String, error: ShowError?)
     case concertAsMovie
 }
 
@@ -83,8 +89,12 @@ enum ManualCheck: CaseIterable {
 final class AppModel {
     static let noticeSeconds: TimeInterval = 5
     static let tickSeconds: TimeInterval = 0.1
+    static let keyMapFile = AppInfo.supportDirectory.appendingPathComponent("keymap.json")
+    static let cheatSheetFile = AppInfo.supportDirectory.appendingPathComponent("cheatsheet.html")
 
     let engine: PlaybackEngine
+    let keyMap: KeyMap
+    let advanced = Advanced()
     private(set) var document: ShowDocument?
 
     var lang: Lang {
@@ -143,7 +153,6 @@ final class AppModel {
     @ObservationIgnored private(set) var quitConfirmed = false
     @ObservationIgnored private var noticeAt = Date.distantPast
     @ObservationIgnored private var outputPendingUntil = Date.distantPast
-    @ObservationIgnored private var keyMap: KeyMap?
     @ObservationIgnored private var watcher: DisplayWatcher?
     @ObservationIgnored private var cursorGuard: CursorGuard?
     @ObservationIgnored private var timer: Timer?
@@ -157,13 +166,8 @@ final class AppModel {
     init(plan: LaunchPlan, recoveries: Int, mode: Mode) {
         let lang = Lang.saved
         var problems: [Problem] = []
-        var keyMap: KeyMap?
-        do {
-            keyMap = try KeyMap(json: Data(KeyMap.defaultJSON.utf8))
-        } catch {
-            Log.info("error: \(error)")
-            problems.append(.keyMap("\(error)"))
-        }
+        let (keyMap, keyMapError) = Self.loadKeyMap()
+        if let keyMapError { problems.append(.keyMap(keyMapError)) }
         self.lang = lang
         self.keyMap = keyMap
         self.problems = problems
@@ -171,8 +175,10 @@ final class AppModel {
         engine = PlaybackEngine(defaultBreakTitle: Strings(lang: lang).breakTitle)
 
         engine.onEvent = { [weak self] command in self?.send(command) }
-        engine.onLoadError = { [weak self] _, url, message, warning in
-            self?.loadFailed(LoadError(url: url, message: message, warning: warning))
+        advanced.send = { [weak self] command in self?.send(command) }
+        advanced.mode = { [weak self] in self?.state.mode ?? .concert }
+        engine.onLoadError = { [weak self] _, url, failure in
+            self?.loadFailed(LoadError(url: url, failure: failure))
         }
         watcher = DisplayWatcher(window: engine.window) { [weak self] status in self?.outputChanged(status) }
         cursorGuard = CursorGuard { [weak self] in self?.watcher?.outputDisplay }
@@ -199,7 +205,7 @@ final class AppModel {
     }
 
     var strings: Strings {
-        Strings(lang: lang)
+        Strings(lang: lang, keyMap: keyMap)
     }
 
     var title: String? {
@@ -275,8 +281,8 @@ final class AppModel {
             update(\.deletePending, nil)
         }
         if let chord {
-            lastKey = LastKey(name: KeyInput.label(of: chord), result: .command(command))
-            Log.deferred("key \(KeyInput.name(of: chord)) -> \(command)")
+            lastKey = LastKey(chord: chord, result: .command(command))
+            Log.deferred("key \(chord.name) -> \(command)")
         }
         if case .armedReady(_, let url, let duration) = command, duration.isFinite, durations[url] != duration {
             durations[url] = duration
@@ -318,7 +324,7 @@ final class AppModel {
             let name = URL(fileURLWithPath: path).lastPathComponent
             let reason = (error as? ShowError)?.description ?? "\(name): \(error.localizedDescription)"
             Log.info("error: \(reason)")
-            problems.append(.show(reason))
+            problems.append(.show(file: name, error: error as? ShowError))
             return false
         }
     }
@@ -351,23 +357,33 @@ final class AppModel {
 
     // Held keys must not repeat GO or seeks; every key is swallowed so nothing beeps on stage.
     func keyDown(_ event: NSEvent) -> NSEvent? {
-        guard !event.isARepeat, let chord = KeyInput.chord(for: event) else { return nil }
-        switch keyMap?.action(for: chord) {
+        guard !event.isARepeat else { return nil }
+        let chord = KeyInput.chord(for: event)
+        // The key that stops a stress run does nothing else, so stopping never switches the projector.
+        if advanced.stressRunning {
+            advanced.stopStress(reason: "key \(chord?.name ?? "code \(event.keyCode)")")
+            if let chord { lastKey = LastKey(chord: chord, result: .stressStopped) }
+            return nil
+        }
+        guard let chord else { return nil }
+        switch keyMap.action(for: chord) {
         case .command(let command)?:
             send(command, chord: chord, receivedAt: event.timestamp)
         case .toggleAdvanced?:
-            lastKey = LastKey(name: KeyInput.label(of: chord), result: .advanced)
+            lastKey = LastKey(chord: chord, result: .advanced)
+            advanced.toggle()
         case nil:
             if chord.modifiers.contains(.command), NSApp.mainMenu?.performKeyEquivalent(with: event) == true {
                 return nil
             }
-            lastKey = LastKey(name: KeyInput.label(of: chord), result: .nothing)
+            lastKey = LastKey(chord: chord, result: .nothing)
         }
         return nil
     }
 
     // Press twice within the confirm window, like every other choice that can change the projector.
     func pickOutput(_ choice: OutputChoice) {
+        advanced.stopStress(reason: "output picker click")
         guard state.mode == .rehearsal else { return }
         let current: OutputChoice? =
             automaticOutput ? .automatic : displays.first(where: \.saved).map { .display($0.id) }
@@ -383,6 +399,53 @@ final class AppModel {
         Log.info("output display picked: \(display.map { "\($0)" } ?? "automatic")")
         watcher?.setPreferred(display)
         refreshDisplays()
+    }
+
+    // --- Advanced view ---
+
+    // Regenerated from the loaded key map on every click, so a remapped key always prints as it works.
+    func openCheatSheet() {
+        guard state.mode == .rehearsal else { return }
+        let file = Self.cheatSheetFile
+        let name = file.lastPathComponent
+        problems.removeAll { if case .save(name, _) = $0 { true } else { false } }
+        do {
+            try FileManager.default.createDirectory(
+                at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(CheatSheet.html(keyMap: keyMap, lang: lang).utf8).write(to: file, options: .atomic)
+            Log.info("cheat sheet written: \(file.path)")
+            NSWorkspace.shared.open(file)
+        } catch {
+            Log.info("error: cannot write \(file.path): \(error.localizedDescription)")
+            problems.append(.save(file: name, reason: error.localizedDescription))
+        }
+    }
+
+    func revealKeyMap() {
+        guard state.mode == .rehearsal else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([Self.keyMapFile])
+    }
+
+    func openLogFolder() {
+        guard state.mode == .rehearsal else { return }
+        NSWorkspace.shared.open(Log.directory)
+    }
+
+    // The owner edits keymap.json; a broken one never takes the show keys away.
+    private static func loadKeyMap() -> (KeyMap, KeyMapError?) {
+        let url = keyMapFile
+        do {
+            if try KeyMap.installDefault(at: url) { Log.info("keymap: default written to \(url.path)") }
+        } catch {
+            Log.info("error: cannot write the default keymap \(url.path): \(error.localizedDescription)")
+        }
+        let (map, error) = KeyMap.load(from: url)
+        if let error {
+            Log.info("error: \(error), using the default keys")
+        } else {
+            Log.info("keymap \(url.path)")
+        }
+        return (map, error)
     }
 
     // --- Modes and editor ---
@@ -403,18 +466,27 @@ final class AppModel {
         document?.isLocked(place, live: state.liveIndex) ?? false
     }
 
+    // Confirm-type clicks stop a stress run first, or its next random key would cancel the confirmation.
     func requestMode(_ mode: Mode) {
+        advanced.stopStress(reason: "mode click")
         commitDrafts()
         send(.requestMode(mode))
     }
 
     func unlockEditing() {
+        advanced.stopStress(reason: "unlock click")
         send(.unlockEditing)
     }
 
     func lockEditing() {
+        advanced.stopStress(reason: "lock click")
         commitDrafts()
         send(.lockEditing)
+    }
+
+    func confirmQuitByClick() {
+        advanced.stopStress(reason: "quit click")
+        send(.confirmQuitByClick)
     }
 
     func toggleEditing() {
@@ -434,6 +506,7 @@ final class AppModel {
 
     // Press twice within the confirm window; a delete cannot be undone.
     func requestDelete(_ place: Place) {
+        advanced.stopStress(reason: "delete click")
         let now = Date()
         guard deletePending == place, now < deletePendingUntil else {
             deletePending = place
@@ -487,12 +560,13 @@ final class AppModel {
         } catch {
             let reason = (error as? ShowError)?.description ?? error.localizedDescription
             Log.info("error: cannot add movie \(url.path): \(reason)")
-            showEditNotice(.cannotAddMovie(reason))
+            showEditNotice(.cannotAddMovie(file: url.lastPathComponent, error: error as? ShowError))
         }
     }
 
+    // Rehearsal only, like Open: an unlocked concert edits the show it has, never swaps it.
     func createConcert(at url: URL) {
-        guard canEdit else { return }
+        guard state.mode == .rehearsal else { return }
         do {
             open(try ShowLoader.createConcert(at: url.standardizedFileURL).path)
         } catch {
@@ -653,7 +727,7 @@ final class AppModel {
     }
 
     private func showEditNotice(_ notice: EditNotice) {
-        Log.deferred("edit notice: \(Strings(lang: .en).editNotice(notice))")
+        Log.deferred("edit notice: \(Strings(lang: .en, keyMap: keyMap).editNotice(notice))")
         editNotice = notice
         editNoticeAt = Date()
     }
@@ -662,6 +736,7 @@ final class AppModel {
     private func syncMode() {
         if state.mode != appliedMode {
             appliedMode = state.mode
+            advanced.stopStress(reason: "mode changed")
             Log.info("mode \(state.mode.rawValue)")
             onModeChange(state.mode)
         }
@@ -685,9 +760,11 @@ final class AppModel {
         for case .load(_, let url, _) in effects where loadErrors.contains(where: { $0.url == url }) {
             loadErrors.removeAll { $0.url == url }
         }
-        engine.apply(effects, for: label, receivedAt: receivedAt)
+        if let ms = engine.apply(effects, for: label, receivedAt: receivedAt) {
+            advanced.recordSwitch(ms: ms, go: effects.contains { if case .show = $0 { true } else { false } })
+        }
         for case .notice(let notice) in effects {
-            Log.deferred("notice: \(Strings(lang: .en).notice(notice))")
+            Log.deferred("notice: \(Strings(lang: .en, keyMap: keyMap).notice(notice))")
             self.notice = notice
             noticeAt = Date()
         }
@@ -780,7 +857,8 @@ final class AppModel {
     // A clip still being probed stays out until its probe arrives, instead of showing as missing.
     private func evaluateShow(pending: Set<URL>) {
         let cues = state.cues
-        let findings = Preflight.evaluate(cues: cues, probes: probes).filter { finding in
+        let logoCount = document?.logos.count ?? 0
+        let findings = Preflight.evaluate(cues: cues, probes: probes, logoCount: logoCount).filter { finding in
             guard let index = finding.cueIndex, case .clip(_, let url) = cues[index].kind else { return true }
             return !pending.contains(url)
         }
@@ -861,7 +939,7 @@ extension Command {
 extension Notice {
     fileprivate var isConfirmation: Bool {
         switch self {
-        case .confirmUnmute, .confirmMode, .confirmUnlock, .confirmQuit: true
+        case .confirmUnmute, .confirmMode, .confirmUnlock, .confirmQuit, .confirmQuitClick: true
         default: false
         }
     }

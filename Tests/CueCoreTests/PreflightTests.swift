@@ -100,12 +100,23 @@ private func probe(_ change: (inout ClipProbe) -> Void) -> ClipProbe {
             Cue(kind: .clip(Clip(file: "02_y.mp4"), other), movieIndex: 0),
             Cue(kind: .clip(Clip(file: "03_z.mp4"), URL(fileURLWithPath: "/show/03_z.mp4")), movieIndex: 0),
         ]
-        let findings = Preflight.evaluate(cues: cues, probes: [good: ownExport, other: probe { $0.fps = 25 }])
+        let findings = Preflight.evaluate(
+            cues: cues, probes: [good: ownExport, other: probe { $0.fps = 25 }], logoCount: 0)
         #expect(
             findings == [
                 Finding(severity: .warn, cueIndex: 2, kind: .frameRate, detail: "25 fps"),
                 Finding(severity: .block, cueIndex: 3, kind: .fileMissing, detail: "03_z.mp4"),
             ])
+    }
+
+    @Test func logoCueAboveTheLogoCountWarns() {
+        let cues = [1, 2, 3].map { Cue(kind: .logo($0), movieIndex: nil) }
+        #expect(
+            Preflight.evaluate(cues: cues, probes: [:], logoCount: 2) == [
+                Finding(severity: .warn, cueIndex: 2, kind: .logoNumber, detail: "3")
+            ])
+        #expect(Preflight.evaluate(cues: cues, probes: [:], logoCount: 0).map(\.cueIndex) == [0, 1, 2])
+        #expect(Preflight.evaluate(cues: cues, probes: [:], logoCount: 3) == [])
     }
 }
 

@@ -3,7 +3,7 @@ import Foundation
 enum Log {
     private static let keepDays: Double = 14
     private static let queue = DispatchQueue(label: "log")
-    private static let directory = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
+    static let directory = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("Logs", isDirectory: true)
         .appendingPathComponent(AppInfo.name, isDirectory: true)
     private static let stamp: ISO8601DateFormatter = {
@@ -29,6 +29,10 @@ enum Log {
     static func deferred(_ message: String) {
         let now = Date()
         queue.async { write(message, at: now) }
+    }
+
+    static var todayFile: URL {
+        directory.appendingPathComponent(day.string(from: Date()) + ".log")
     }
 
     static func flush() {

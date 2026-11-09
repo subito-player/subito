@@ -52,7 +52,7 @@ struct Previews: View {
     private func liveLabel(_ s: Strings, _ state: ShowState) -> some View {
         HStack(spacing: 8) {
             Tag(text: s.live, fill: Palette.live, ink: .white)
-            Text(state.liveIndex.map { s.title(state.cues[$0]) } ?? s.black).lineLimit(1)
+            Text(liveTitle(s, state)).lineLimit(1)
             if state.cover != nil {
                 let play = state.livePlaying ? s.running : s.paused
                 Tag(
@@ -61,6 +61,19 @@ struct Previews: View {
             }
         }
         .font(.system(size: 15, weight: .bold))
+    }
+
+    // After an Open the live item may not be in the new list, so the output itself names it.
+    private func liveTitle(_ s: Strings, _ state: ShowState) -> String {
+        if let index = state.liveIndex, state.cues.indices.contains(index) { return s.title(state.cues[index]) }
+        switch state.base {
+        case .black: return s.black
+        case .logo(let number): return "\(s.logo) \(number)"
+        case .breakScreen: return model.engine.breakTitle
+        case .clip(let slot):
+            guard let url = model.engine.url(slot) else { return "" }
+            return model.cue(for: url).map(s.title) ?? Clip(file: url.lastPathComponent).resolvedTitle
+        }
     }
 
     private func nextLabel(_ s: Strings, _ state: ShowState) -> some View {

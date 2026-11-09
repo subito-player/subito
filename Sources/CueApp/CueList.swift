@@ -260,15 +260,22 @@ private struct Inspector: View {
             .toggleStyle(.checkbox)
             .focusable(false)
         case .logo(let logo):
+            // Only logos the show has; a number above them would show black.
+            let count = model.document?.logos.count ?? 0
             HStack(spacing: 6) {
                 Text(s.logoNumber).foregroundStyle(Palette.dim).frame(width: 130, alignment: .leading)
-                ForEach(1...max(2, model.document?.logos.count ?? 0), id: \.self) { number in
-                    BarButton(text: "\(number)") { model.edit(.setLogo(place, number)) }
-                        .overlay {
-                            if number == logo.logo {
-                                RoundedRectangle(cornerRadius: 6).strokeBorder(Palette.armed, lineWidth: 2)
+                if count == 0 {
+                    BarButton(text: "\(logo.logo)") {}.disabled(true).opacity(0.55)
+                    Text(s.noLogos).foregroundStyle(Palette.warn).lineLimit(2)
+                } else {
+                    ForEach(1...count, id: \.self) { number in
+                        BarButton(text: "\(number)") { model.edit(.setLogo(place, number)) }
+                            .overlay {
+                                if number == logo.logo {
+                                    RoundedRectangle(cornerRadius: 6).strokeBorder(Palette.armed, lineWidth: 2)
+                                }
                             }
-                        }
+                    }
                 }
             }
         case .movie:

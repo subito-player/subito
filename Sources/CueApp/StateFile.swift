@@ -5,9 +5,7 @@ enum StateFile {
     private static let queue = DispatchQueue(label: "state")
     // Only touched on the queue; keeps a failing disk from filling the log every second.
     private static var failing = false
-    static let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent(Bundle.main.bundleIdentifier ?? AppInfo.name, isDirectory: true)
-        .appendingPathComponent("state.json")
+    static let url = AppInfo.supportDirectory.appendingPathComponent("state.json")
 
     static func load() -> RecoveryState? {
         Recovery.load(from: url)

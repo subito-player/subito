@@ -24,10 +24,8 @@ final class CursorGuard {
         guard let output = outputDisplay(), let cursor = CGEvent(source: nil)?.location else { return }
         let outputBounds = CGDisplayBounds(output)
         guard outputBounds.contains(cursor) else { return }
-        let control = DisplayWatcher.activeDisplays()
-            .filter { CGDisplayPrimaryDisplay($0) != CGDisplayPrimaryDisplay(output) }
-            .map(CGDisplayBounds)
-        guard let target = ScreenGeometry.nearestPoint(to: cursor, inAnyOf: control) else { return }
+        let control = CGDisplayBounds(DisplayWatcher.roles().control)
+        guard let target = ScreenGeometry.nearestPoint(to: cursor, inAnyOf: [control]) else { return }
         CGWarpMouseCursorPosition(target)
         CGAssociateMouseAndMouseCursorPosition(1)
     }
