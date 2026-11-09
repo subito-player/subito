@@ -79,6 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        model?.converter.shutDown()
         model?.commitDrafts()
         if let model, model.quitConfirmed { model.saveState(cleanExit: true) }
         Log.info("terminate")

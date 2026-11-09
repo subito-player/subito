@@ -257,6 +257,8 @@ private struct StatusLine: View {
         let showFailed = model.problems.contains { if case .show = $0 { true } else { false } }
         if model.document == nil, !showFailed { parts.append((s.noShow, Palette.warn)) }
         if model.checking { parts.append((s.checking, Palette.dim)) }
+        // The panel may be closed, so the line says something is still working in the background.
+        if let source = model.converter.current { parts.append((s.converting(cue(source)), Palette.dim)) }
         guard !parts.isEmpty else { return Text(s.allGood).foregroundStyle(Palette.ok) }
         return parts.dropFirst().reduce(Text(parts[0].0).foregroundStyle(parts[0].1)) { line, part in
             line + Text("  ·  ").foregroundStyle(Palette.dim) + Text(part.0).foregroundStyle(part.1)

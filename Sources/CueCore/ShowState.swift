@@ -113,6 +113,11 @@ public struct ShowState: Equatable, Sendable {
         mode == .rehearsal || editUnlocked
     }
 
+    // Covered or not; a paused or ended clip is not running.
+    public var liveClipRunning: Bool {
+        liveSlot != nil && livePlaying
+    }
+
     // The slot the armed clip loads into, so a preview can show that player; nil unless a clip is armed.
     public var armedSlot: Slot? {
         armedClip?.slot

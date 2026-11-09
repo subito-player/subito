@@ -55,6 +55,8 @@ public enum Edit: Equatable, Sendable {
     case setClipTimes(Place, plannedEndS: Double?, tailS: Double?)
     case setBreak(Place, minutes: Double, countdown: Bool)
     case setLogo(Place, Int)
+    // A converted sibling replaces the clip's file; the list keeps the title it showed.
+    case replaceClipFile(Place, URL)
 }
 
 public enum Addition: Sendable {
@@ -226,6 +228,14 @@ public struct ShowDocument: Equatable, Sendable {
         case .setLogo(let place, let number):
             guard case .logo? = item(at: place) else { return .failure(.noSuchItem) }
             return modify(place, to: .logo(LogoItem(logo: number)))
+        case .replaceClipFile(let place, let file):
+            return modifyClip(place) { clip in
+                let title = clip.resolvedTitle
+                // Only the name changes, so the folder part stays as written, relative or absolute.
+                let folder = clip.file.lastIndex(of: "/").map { String(clip.file[...$0]) } ?? ""
+                clip.file = folder + file.lastPathComponent
+                if clip.resolvedTitle != title { clip.title = title }
+            }
         }
     }
 

@@ -62,6 +62,8 @@ enum EditNotice: Error, Equatable {
     case invalidMinutes
     case cannotAddMovie(file: String, error: ShowError?)
     case concertAsMovie
+    case convertWhileRunning
+    case convertFailed(file: String, Conversion.Failure)
 }
 
 // An inspector field; its place pins a draft to one item, so it never lands on another.
@@ -96,6 +98,7 @@ final class AppModel {
     let engine: PlaybackEngine
     let keyMap: KeyMap
     let advanced = Advanced()
+    let converter = Converter()
     private(set) var document: ShowDocument?
 
     var lang: Lang {
@@ -184,6 +187,10 @@ final class AppModel {
         engine.onEvent = { [weak self] command in self?.send(command) }
         advanced.send = { [weak self] command in self?.send(command) }
         advanced.mode = { [weak self] in self?.state.mode ?? .concert }
+        converter.onConverted = { [weak self] source, output in self?.converted(source, to: output) }
+        converter.onFailed = { [weak self] source, failure in
+            self?.showEditNotice(.convertFailed(file: source.lastPathComponent, failure))
+        }
         engine.onLoadError = { [weak self] _, url, failure in
             self?.loadFailed(LoadError(url: url, failure: failure))
         }
@@ -322,6 +329,10 @@ final class AppModel {
         problems.removeAll { if case .show = $0 { true } else { false } }
         do {
             let document = try ShowDocument.load(URL(fileURLWithPath: path).standardizedFileURL)
+            // Conversions belong to the show they were started in.
+            converter.cancelAll(reason: "show opened")
+            converter.sweep(
+                document.cues.compactMap { cue in if case .clip(_, let url) = cue.kind { url } else { nil } })
             self.document = document
             problems.removeAll { if case .save = $0 { true } else { false } }
             recoveryNotice = nil
@@ -349,7 +360,9 @@ final class AppModel {
 
     func togglePreflight() {
         preflightOpen.toggle()
-        if preflightOpen { checkSystem() }
+        guard preflightOpen else { return }
+        checkSystem()
+        converter.locate()
     }
 
     func saveState(cleanExit: Bool = false) {
@@ -490,6 +503,47 @@ final class AppModel {
             Log.info("keymap \(url.path)")
         }
         return (map, error)
+    }
+
+    // --- Converter ---
+
+    var convertible: [URL] {
+        Conversion.candidates(cues: state.cues, findings: showFindings)
+    }
+
+    // Rehearsal only, and never started while a clip is live and running; a GO once it runs is fine.
+    func convert(_ urls: [URL]) {
+        guard state.mode == .rehearsal, !urls.isEmpty else { return }
+        guard !state.liveClipRunning else {
+            Log.info("convert refused: a live clip is running")
+            return showEditNotice(.convertWhileRunning)
+        }
+        converter.enqueue(urls)
+    }
+
+    func cancelConversion(_ url: URL) {
+        converter.cancel(url)
+    }
+
+    func cancelConversions() {
+        converter.cancelAll(reason: "cancel all click")
+    }
+
+    // Every item playing the source switches to the new file; the original stays on disk.
+    private func converted(_ source: URL, to output: URL) {
+        guard let document else { return }
+        var places: [Place] = []
+        for row in document.rows {
+            guard case .cue(let index) = row.kind, case .clip(_, let url) = document.cues[index].kind, url == source,
+                let place = row.place, !places.contains(place)
+            else { continue }
+            places.append(place)
+        }
+        Log.info("converted \(source.lastPathComponent) -> \(output.lastPathComponent), \(places.count) items updated")
+        // A file once probed under that name (since deleted, say) is judged afresh.
+        probes[output] = nil
+        durations[output] = nil
+        for place in places { perform(.replaceClipFile(place, output)) }
     }
 
     // --- Modes and editor ---
@@ -790,7 +844,10 @@ final class AppModel {
             appliedMode = state.mode
             advanced.stopStress(reason: "mode changed")
             Log.info("mode \(state.mode.rawValue)")
-            if state.mode == .concert { presentation = .fullscreen }
+            if state.mode == .concert {
+                presentation = .fullscreen
+                converter.cancelAll(reason: "concert mode")
+            }
             applyPresentation(reason: "mode \(state.mode.rawValue)")
             onModeChange(state.mode)
         }

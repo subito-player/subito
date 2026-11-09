@@ -307,6 +307,59 @@ extension ShowDocument {
         #expect(alone.document.rows[0].kind == .movie(0, title: "Solo"))
     }
 
+    @Test func replacedClipFileSwapsOnlyTheNameAndEveryCueKeepsItsPlace() throws {
+        let converted = URL(fileURLWithPath: "/show/01_x.mp4")
+        let mkv = try single().apply(
+            .replaceClipFile(place(movieA, 0), URL(fileURLWithPath: "/show/01_x.mkv")), live: 0
+        )
+        .edited
+        let result = try mkv.document.apply(.replaceClipFile(place(movieA, 0), converted), live: 0).edited
+        #expect(result.document.items(movieA)[0] == .clip(clipX))
+        #expect(result.document.cues[0].kind == .clip(clipX, converted))
+        #expect(result.indexMap == [0, 1, 2])
+        #expect(result.changed == [movieA])
+        #expect(result.touched == place(movieA, 0))
+    }
+
+    @Test func replacedClipFileKeepsTheFolderAsWrittenRelativeOrAbsolute() throws {
+        let document = ShowDocument(
+            movie: Movie(
+                title: "A",
+                items: [.clip(Clip(file: "../media/01_x.mkv")), .clip(Clip(file: "/Volumes/Stage/02_y.avi"))]),
+            at: movieA)
+        let up = try document.apply(
+            .replaceClipFile(place(movieA, 0), URL(fileURLWithPath: "/media/01_x.mp4")), live: nil
+        )
+        .edited
+        #expect(up.document.items(movieA)[0] == .clip(Clip(file: "../media/01_x.mp4")))
+        #expect(
+            up.document.cues[0].kind == .clip(Clip(file: "../media/01_x.mp4"), URL(fileURLWithPath: "/media/01_x.mp4")))
+        let absolute = try up.document.apply(
+            .replaceClipFile(place(movieA, 1), URL(fileURLWithPath: "/Volumes/Stage/02_y.mp4")), live: nil
+        ).edited
+        #expect(absolute.document.items(movieA)[1] == .clip(Clip(file: "/Volumes/Stage/02_y.mp4")))
+    }
+
+    @Test func replacedClipFileKeepsTheTitleTheListShowed() throws {
+        let renamed = try single().apply(
+            .replaceClipFile(place(movieA, 0), URL(fileURLWithPath: "/show/01_x (converted).mp4")), live: nil
+        ).edited
+        #expect(renamed.document.items(movieA)[0] == .clip(Clip(file: "01_x (converted).mp4", title: "X")))
+        let titled = try renamed.document.apply(.renameClip(place(movieA, 0), "Opening"), live: nil).edited
+        let again = try titled.document.apply(
+            .replaceClipFile(place(movieA, 0), URL(fileURLWithPath: "/show/01_x (converted 2).mp4")), live: nil
+        ).edited
+        #expect(again.document.items(movieA)[0] == .clip(Clip(file: "01_x (converted 2).mp4", title: "Opening")))
+    }
+
+    @Test func replacedClipFileReachesEveryCueOfAMovieUsedTwice() throws {
+        let converted = URL(fileURLWithPath: "/show/01_x.mp4")
+        let result = try gala(twiceA: true).apply(.replaceClipFile(place(movieA, 0), converted), live: nil).edited
+        #expect(result.document.cues[1].kind == .clip(clipX, converted))
+        #expect(result.document.cues[7].kind == .clip(clipX, converted))
+        #expect(result.indexMap == Array(0..<10))
+    }
+
     @Test func wrongKindOrMissingTargetIsRefused() {
         let document = gala()
         #expect(document.apply(.renameClip(place(movieA, 1), "x"), live: nil).refusal == .noSuchItem)
@@ -317,6 +370,9 @@ extension ShowDocument {
             document.apply(.setBreak(place(concertURL, 0), minutes: 1, countdown: true), live: nil).refusal
                 == .noSuchItem)
         #expect(document.apply(.setLogo(place(concertURL, 0), 2), live: nil).refusal == .noSuchItem)
+        #expect(
+            document.apply(.replaceClipFile(place(movieA, 1), URL(fileURLWithPath: "/show/x.mp4")), live: nil).refusal
+                == .noSuchItem)
         #expect(document.apply(.renameMovie(concertURL, "x"), live: nil).refusal == .noSuchItem)
         #expect(single().apply(.renameConcert("x"), live: nil).refusal == .noSuchItem)
     }

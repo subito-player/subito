@@ -11,24 +11,18 @@ struct PreflightPanel: View {
             HStack {
                 Text(s.preflight).font(.system(size: 17, weight: .bold))
                 Spacer()
-                Button(action: model.togglePreflight) {
-                    Text(s.close)
-                        .font(.system(size: 14, weight: .semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 3)
-                        .background(Palette.raise, in: RoundedRectangle(cornerRadius: 5))
-                        .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Palette.line))
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .focusable(false)
+                PanelButton(text: s.close, action: model.togglePreflight)
             }
             .padding(14)
             Palette.line.frame(height: 1)
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     if !model.state.cues.isEmpty {
-                        heading(s.showSection)
+                        HStack(alignment: .firstTextBaseline) {
+                            heading(s.showSection)
+                            Spacer(minLength: 0)
+                            if model.state.mode == .rehearsal { convertAll(s) }
+                        }
                         showRows(s)
                     }
                     heading(s.systemSection)
@@ -62,7 +56,28 @@ struct PreflightPanel: View {
             FindingRow(dot: Palette.ok, heading: nil, title: s.everyClipPlays(clips), detail: "")
         }
         ForEach(model.showFindings.indices, id: \.self) { index in
-            row(model.showFindings[index], s)
+            let finding = model.showFindings[index]
+            // Rehearsal only: a conversion writes files and loads the Mac.
+            if model.state.mode == .rehearsal, let url = Conversion.candidate(finding, cues: model.state.cues) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    row(finding, s)
+                    Spacer(minLength: 0)
+                    ConvertControl(model: model, url: url)
+                }
+            } else {
+                row(finding, s)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func convertAll(_ s: Strings) -> some View {
+        let converter = model.converter
+        // Not through phase(of:), whose progress would redraw the whole panel twice a second.
+        let idle = model.convertible.filter { $0 != converter.current && !converter.queue.contains($0) }
+        HStack(spacing: 8) {
+            if converter.pending > 1 { PanelButton(text: s.cancelAll, action: model.cancelConversions) }
+            if converter.tool != nil, idle.count > 1 { PanelButton(text: s.convertAll) { model.convert(idle) } }
         }
     }
 
@@ -116,5 +131,64 @@ private struct FindingRow: View {
                 }
             }
         }
+    }
+}
+
+private struct ConvertControl: View {
+    let model: AppModel
+    let url: URL
+
+    var body: some View {
+        let s = model.strings
+        let converter = model.converter
+        VStack(alignment: .trailing, spacing: 4) {
+            if converter.tool == nil {
+                Text(s.convertNeedsFFmpeg).font(.system(size: 13)).foregroundStyle(Palette.dim)
+            } else if let phase = converter.phase(of: url) {
+                HStack(spacing: 8) {
+                    Text(s.conversion(phase, downloads: converter.downloads))
+                        .font(.system(size: 13).monospacedDigit())
+                        .foregroundStyle(Palette.dim)
+                    PanelButton(text: s.cancel) { model.cancelConversion(url) }
+                }
+                progress(phase).progressViewStyle(.linear).controlSize(.small).frame(width: 200)
+            } else {
+                PanelButton(text: s.convert) { model.convert([url]) }
+                if let failure = converter.failures[url] {
+                    Text(s.convertFailure(failure)).font(.system(size: 13)).foregroundStyle(Palette.live)
+                }
+            }
+        }
+        .multilineTextAlignment(.trailing)
+        .frame(maxWidth: 260, alignment: .trailing)
+    }
+
+    @ViewBuilder
+    private func progress(_ phase: Converter.Phase) -> some View {
+        switch phase {
+        case .waiting: EmptyView()
+        case .running(_, let fraction?): ProgressView(value: fraction)
+        case .preparing, .running: ProgressView()
+        }
+    }
+}
+
+private struct PanelButton: View {
+    let text: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(text)
+                .font(.system(size: 14, weight: .semibold))
+                .lineLimit(1)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 3)
+                .background(Palette.raise, in: RoundedRectangle(cornerRadius: 5))
+                .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Palette.line))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
     }
 }
