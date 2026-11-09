@@ -119,6 +119,35 @@ public enum ShowLoader {
         return url
     }
 
+    // A folder becomes its generated movie file, as "Open folder" does.
+    public static func openMovie(_ url: URL) throws -> (url: URL, movie: Movie) {
+        var isFolder: ObjCBool = false
+        let file =
+            FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder) && isFolder.boolValue
+            ? try importFolder(url) : url
+        return (file, try loadMovie(at: file))
+    }
+
+    // "Gala", "Gala.json" and "Gala.concert.json" all name Gala.concert.json; an existing file is never overwritten.
+    public static func createConcert(at url: URL) throws -> URL {
+        var name = url.lastPathComponent
+        for suffix in [".json", ".concert"] where name.hasSuffix(suffix) {
+            name.removeLast(suffix.count)
+        }
+        let file = url.deletingLastPathComponent().appendingPathComponent(name + ".concert.json")
+        if !FileManager.default.fileExists(atPath: file.path) { try save(Concert(title: name), to: file) }
+        return file
+    }
+
+    // Relative only inside the file's own folder tree, which moves with it; anything else stays absolute.
+    public static func relativePath(to target: URL, from file: URL) -> String {
+        let folder = file.deletingLastPathComponent().resolvingSymlinksInPath().pathComponents
+        let resolved = target.resolvingSymlinksInPath()
+        let parts = resolved.pathComponents
+        guard parts.count > folder.count, Array(parts.prefix(folder.count)) == folder else { return resolved.path }
+        return parts.dropFirst(folder.count).joined(separator: "/")
+    }
+
     public static func flatten(_ loaded: LoadedConcert) -> [Cue] {
         var result: [Cue] = []
         var movieIndex = 0
@@ -144,7 +173,7 @@ public enum ShowLoader {
         movie.items.flatMap { cue(for: $0, movieIndex: movieIndex, base: url) }
     }
 
-    private static func cue(for item: Item, movieIndex: Int?, base: URL) -> [Cue] {
+    static func cue(for item: Item, movieIndex: Int?, base: URL) -> [Cue] {
         let kind: Cue.Kind
         switch item {
         case .clip(let clip): kind = .clip(clip, resolve(clip.file, relativeTo: base))

@@ -34,6 +34,9 @@ public enum Command: Equatable, Sendable {
     case arm(index: Int)
     case toggleMute
     case requestMode(Mode)
+    // Concert only: press twice; switching mode or lockEditing locks it again.
+    case unlockEditing
+    case lockEditing
     case requestQuit
     case armedReady(Slot, URL, duration: Double)
     case liveEnded(Slot)
@@ -45,6 +48,7 @@ public enum Notice: Equatable, Sendable {
     case soundLockedInConcert
     case confirmUnmute
     case confirmMode(Mode)
+    case confirmUnlock
     case confirmQuit
 }
 
@@ -75,6 +79,7 @@ public struct ShowState: Equatable, Sendable {
     public private(set) var livePlaying = false
     public private(set) var mode: Mode = .rehearsal
     public private(set) var muted = true
+    public private(set) var editUnlocked = false
     public private(set) var pending: Notice?
     private var pendingUntil: Date?
     private var armedDuration: Double?
@@ -87,6 +92,10 @@ public struct ShowState: Equatable, Sendable {
     public func activePending(at now: Date) -> Notice? {
         guard let pendingUntil, now < pendingUntil else { return nil }
         return pending
+    }
+
+    public var canEdit: Bool {
+        mode == .rehearsal || editUnlocked
     }
 
     // The slot the armed clip loads into, so a preview can show that player; nil unless a clip is armed.
@@ -103,6 +112,31 @@ public struct ShowState: Equatable, Sendable {
         self.cues = cues
         liveIndex = nil
         return arm(cues.isEmpty ? nil : 0)
+    }
+
+    // An edit never touches the output: live and armed keep their cues, base, cover and play state stay.
+    public mutating func applyEdit(cues new: [Cue], indexMap: [Int?]) -> [Effect] {
+        let map = { (old: Int) -> Int? in
+            guard indexMap.indices.contains(old), let index = indexMap[old], new.indices.contains(index) else {
+                return nil
+            }
+            return index
+        }
+        let armedURL = armedClip?.url
+        let wasEmpty = cues.isEmpty
+        cues = new
+        liveIndex = liveIndex.flatMap(map)
+        guard let old = armedIndex else {
+            // Nothing armed: the cue after the live one, or the first of a show built from nothing, as GO and open do.
+            if let live = liveIndex { return new.indices.contains(live + 1) ? arm(live + 1) : [] }
+            return wasEmpty && !new.isEmpty ? arm(0) : []
+        }
+        guard let index = map(old) else {
+            let next = indexMap.indices.filter { $0 > old }.lazy.compactMap(map).first
+            return arm(next)
+        }
+        armedIndex = index
+        return armedClip?.url == armedURL ? [] : arm(index)
     }
 
     public mutating func handle(_ command: Command, now: Date) -> [Effect] {
@@ -146,6 +180,14 @@ public struct ShowState: Equatable, Sendable {
             return toggleMute(now: now)
         case .requestMode(let new):
             return requestMode(new, now: now)
+        case .unlockEditing:
+            guard mode == .concert, !editUnlocked else { return [] }
+            guard confirm(.confirmUnlock, now: now) else { return [.notice(.confirmUnlock)] }
+            editUnlocked = true
+            return []
+        case .lockEditing:
+            editUnlocked = false
+            return []
         case .requestQuit:
             return confirm(.confirmQuit, now: now) ? [.quit] : [.notice(.confirmQuit)]
         case .armedReady(let slot, let url, let duration):
@@ -258,6 +300,7 @@ public struct ShowState: Equatable, Sendable {
         guard new != mode else { return [] }
         guard confirm(.confirmMode(new), now: now) else { return [.notice(.confirmMode(new))] }
         mode = new
+        editUnlocked = false
         guard new == .concert, !muted else { return [] }
         muted = true
         return [.setMuted(true)]
@@ -287,6 +330,7 @@ extension Command {
         switch self {
         case .toggleMute: .confirmUnmute
         case .requestMode(let mode): .confirmMode(mode)
+        case .unlockEditing: .confirmUnlock
         case .requestQuit: .confirmQuit
         default: nil
         }

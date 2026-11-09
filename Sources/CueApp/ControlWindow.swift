@@ -21,10 +21,14 @@ final class ControlWindow: NSWindow {
         for kind: NSWindow.ButtonType in [.closeButton, .miniaturizeButton, .zoomButton] {
             standardWindowButton(kind)?.isHidden = true
         }
+        let pickers = Pickers(
+            openShow: { [weak self] in self?.chooseShow() },
+            newMovie: { [weak self] in self?.newMovie() },
+            newConcert: { [weak self] in self?.newConcert() },
+            addClips: { [weak self] in self?.addClips() },
+            addMovie: { [weak self] in self?.addMovie() })
         let host = NSHostingView(
-            rootView: ControlView(
-                model: model, focusControl: { [weak self] in self?.takeFocus() },
-                openShow: { [weak self] in self?.chooseShow() }))
+            rootView: ControlView(model: model, focusControl: { [weak self] in self?.takeFocus() }, pickers: pickers))
         // The window size comes from the screen, never from the SwiftUI content.
         host.sizingOptions = []
         contentView = host
@@ -63,22 +67,110 @@ final class ControlWindow: NSWindow {
         updateFocus()
     }
 
-    // A sheet stays on the control screen, never under the output window.
+    // The field editor of a focused text field; the key monitor then passes keys to it.
+    var isTyping: Bool {
+        firstResponder is NSText
+    }
+
+    func endTyping() {
+        if isTyping { _ = makeFirstResponder(nil) }
+    }
+
+    override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
+        let made = super.makeFirstResponder(responder)
+        syncTyping()
+        return made
+    }
+
+    // A click anywhere but the field being edited ends the typing, as Enter does.
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown, let editor = firstResponder as? NSTextView,
+            let hit = contentView?.hitTest(event.locationInWindow),
+            !(hit === editor || (editor.delegate as? NSView).map(hit.isDescendant(of:)) == true)
+        {
+            endTyping()
+        }
+        super.sendEvent(event)
+        syncTyping()
+    }
+
+    private func syncTyping() {
+        if model.typing != isTyping { model.typing = isTyping }
+    }
+
     private func chooseShow() {
-        guard attachedSheet == nil else { return }
         let s = model.strings
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [.json]
         panel.message = s.openMessage
         panel.prompt = s.open
+        present(panel) { [weak self] urls in
+            if let url = urls.first { self?.model.open(url.path) }
+        }
+    }
+
+    // A new or empty folder becomes an empty movie, so one picker covers both ways to start a movie.
+    private func newMovie() {
+        let s = model.strings
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.message = s.newMovieMessage
+        panel.prompt = s.create
+        present(panel) { [weak self] urls in
+            if let url = urls.first { self?.model.open(url.path) }
+        }
+    }
+
+    private func newConcert() {
+        let s = model.strings
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = s.newConcertName + ".concert.json"
+        panel.message = s.newConcertMessage
+        panel.prompt = s.create
+        present(panel) { [weak self] urls in
+            if let url = urls.first { self?.model.createConcert(at: url) }
+        }
+    }
+
+    private func addClips() {
+        let s = model.strings
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = [.movie]
+        panel.message = s.addClipsMessage
+        panel.prompt = s.add
+        present(panel) { [weak self] urls in self?.model.addClips(urls) }
+    }
+
+    private func addMovie() {
+        let s = model.strings
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowedContentTypes = [.json]
+        panel.message = s.addMovieMessage
+        panel.prompt = s.add
+        present(panel) { [weak self] urls in
+            if let url = urls.first { self?.model.addMovie(url) }
+        }
+    }
+
+    // A sheet stays on the control screen, never under the output window; a locked concert opens none.
+    private func present(_ panel: NSSavePanel, then done: @escaping ([URL]) -> Void) {
+        guard attachedSheet == nil, model.canEdit else { return }
+        endTyping()
         model.filePickerOpen = true
         panel.beginSheetModal(for: self) { [weak self] response in
             self?.model.filePickerOpen = false
-            guard response == .OK, let url = panel.url else { return }
-            self?.model.open(url.path)
+            guard response == .OK else { return }
+            done((panel as? NSOpenPanel)?.urls ?? panel.url.map { [$0] } ?? [])
         }
         updateFocus()
     }

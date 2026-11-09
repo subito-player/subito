@@ -1,37 +1,27 @@
+import CueCore
 import SwiftUI
 
 struct TopBar: View {
     let model: AppModel
-    let openShow: () -> Void
+    let pickers: Pickers
 
     var body: some View {
         let s = model.strings
         HStack(spacing: 16) {
-            // Static until the mode toggle exists (plan task 7).
-            Text(s.rehearsal)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 3)
-                .background(Palette.confirm, in: RoundedRectangle(cornerRadius: 6))
-                .fixedSize()
+            ModeSwitch(model: model).fixedSize()
             Text(model.title ?? s.noShow)
                 .font(.system(size: 17, weight: .semibold))
                 .lineLimit(1)
                 .frame(minWidth: 140, alignment: .leading)
-            // Concert mode will hide this until editing is unlocked (plan task 7).
-            Button(action: openShow) {
-                Text(s.open)
-                    .font(.system(size: 15, weight: .semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 3)
-                    .background(Palette.raise, in: RoundedRectangle(cornerRadius: 6))
-                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Palette.line))
-                    .contentShape(Rectangle())
+            // Rehearsal, or a concert with editing unlocked.
+            if model.canEdit {
+                HStack(spacing: 8) {
+                    BarButton(text: s.open, action: pickers.openShow)
+                    BarButton(text: s.newMovie, action: pickers.newMovie)
+                    BarButton(text: s.newConcert, action: pickers.newConcert)
+                }
+                .fixedSize()
             }
-            .buttonStyle(.plain)
-            .focusable(false)
-            .fixedSize()
             ProjectorStatus(model: model).frame(maxWidth: 280, alignment: .leading).layoutPriority(1)
             AudioBadge(model: model).frame(maxWidth: 300, alignment: .leading).layoutPriority(1)
             Spacer(minLength: 8)
@@ -42,6 +32,55 @@ struct TopBar: View {
         .padding(.vertical, 9)
         .background(Palette.panel)
         .overlay(alignment: .bottom) { Palette.line.frame(height: 1) }
+    }
+}
+
+struct BarButton: View {
+    let text: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(text)
+                .font(.system(size: 15, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 3)
+                .background(Palette.raise, in: RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Palette.line))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+    }
+}
+
+// Clicking the other mode asks for a second click within 3 s; the output never changes.
+private struct ModeSwitch: View {
+    let model: AppModel
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach([Mode.rehearsal, .concert], id: \.self) { mode in
+                let on = model.state.mode == mode
+                Button {
+                    model.requestMode(mode)
+                } label: {
+                    Text(model.strings.name(mode))
+                        .font(.system(size: 15, weight: .semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 3)
+                        .foregroundStyle(on ? Color.white : Palette.dim)
+                        .background(on ? (mode == .concert ? Palette.live : Palette.confirm) : Color.clear)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .focusable(false)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Palette.line))
     }
 }
 

@@ -35,17 +35,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let saved = StateFile.load()
         let plan = Recovery.plan(from: saved, launchArgument: argument.map(StateFile.showPath))
         Log.info("launch plan \(plan)")
-        let model = AppModel(plan: plan, recoveries: Recovery.recoveries(for: plan, from: saved))
+        // The mode outlives a clean quit too; only a crash recovery also brings back the live cue.
+        let model = AppModel(
+            plan: plan, recoveries: Recovery.recoveries(for: plan, from: saved), mode: saved?.mode ?? .rehearsal)
         self.model = model
         let control = ControlWindow(model: model)
         controlWindow = control
-        // The Open sheet gets its own keys, so its Enter can never fire GO; show keys pause meanwhile.
+        // File pickers and text fields get their own keys, so their Enter can never fire GO.
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak model, weak control] event in
             guard let model, let control, event.window === control, control.attachedSheet == nil else { return event }
-            return model.keyDown(event)
+            guard control.isTyping else { return model.keyDown(event) }
+            switch event.keyCode {
+            case 53:
+                model.cancelTyping()
+                control.endTyping()
+                return nil
+            case 36, 76:
+                // After the field has taken its Enter, so the next key drives the show again.
+                DispatchQueue.main.async { control.endTyping() }
+                return event
+            default:
+                return event
+            }
         }
         control.makeKeyAndOrderFront(nil)
         NSApp.activate()
+        model.onModeChange = { [weak self] mode in self?.setKiosk(mode == .concert) }
+        model.onLanguageChange = { [weak self] in self?.installMainMenu() }
+        setKiosk(model.state.mode == .concert)
     }
 
     // Dock Quit, logout and update restarts get the same press-twice confirmation as Cmd+Q.
@@ -57,15 +74,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        model?.commitDrafts()
         if let model, model.quitConfirmed { model.saveState(cleanExit: true) }
         Log.info("terminate")
         Log.flush()
     }
 
-    // Not enabled yet: concert mode turns it on so rehearsal can still switch apps.
+    // Concert only, so rehearsal can still switch apps.
     func setKiosk(_ on: Bool) {
         NSApp.presentationOptions =
             on ? [.hideDock, .hideMenuBar, .disableProcessSwitching, .disableHideApplication] : []
+        // The visible frame grows or shrinks with the Dock and menu bar, so the window refills it.
+        controlWindow?.place()
     }
 
     @objc private func quitFromMenu() {
@@ -73,14 +93,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func installMainMenu() {
-        let quit = NSMenuItem(title: "Quit \(AppInfo.name)", action: #selector(quitFromMenu), keyEquivalent: "q")
+        let s = model?.strings ?? Strings(lang: .saved)
+        let quit = NSMenuItem(title: s.quit(AppInfo.name), action: #selector(quitFromMenu), keyEquivalent: "q")
         quit.target = self
         let appMenu = NSMenu()
         appMenu.addItem(quit)
         let appItem = NSMenuItem()
         appItem.submenu = appMenu
+        // Copy, paste and select all in the editor's text fields; they act only while one is focused.
+        let editMenu = NSMenu(title: s.edit)
+        editMenu.addItem(withTitle: s.cut, action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: s.copy, action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: s.paste, action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: s.selectAll, action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        let editItem = NSMenuItem()
+        editItem.submenu = editMenu
         let mainMenu = NSMenu()
         mainMenu.addItem(appItem)
+        mainMenu.addItem(editItem)
         NSApp.mainMenu = mainMenu
     }
 

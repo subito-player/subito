@@ -101,9 +101,13 @@ Space can never land in an alert.
 | Audio | muted at launch, M toggles, loud badge naming the device ("AUDIO ON → HDMI") for the whole room | forced mute, M disabled |
 | Banner | none | big CONCERT |
 
+The mode survives every launch: a clean launch restores the saved mode too, so concert stays concert.
+
 **Editor (v0.1, minimal):** new movie, new concert; add clips (file picker or drag in), black, break, logo, movie (to
 concert); drag reorder; delete (press twice); rename; planned end, tail, break minutes and countdown fields. Autosave,
 atomic write. Later: colours, briefs, undo, templates, duplicate.
+While an editor text field is being edited, keys go to the field (banner says so); Enter or Esc ends typing, and
+from then on keys drive the show again.
 
 **Control window (layout A, always dark):** top bar (mode toggle, concert title, Open, projector/power/audio/Hz
 status dots, last key, HU/EN); left 30% two-level list (movie headers, items, LIVE red, ARMED amber); right LIVE and
