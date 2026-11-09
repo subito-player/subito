@@ -18,19 +18,14 @@ final class PlaybackEngine: Player {
 
     private let playerA = AVPlayer()
     private let playerB = AVPlayer()
-    private let logos: [CGImage?]
+    private var logos: [CGImage?] = []
     private var base: Base = .black
     private var breakTimer: Timer?
     private var jobs: [Slot: LoadJob] = [:]
     private var observers: [NSObjectProtocol] = []
 
-    init(logos: [URL], defaultBreakTitle: String) {
+    init(defaultBreakTitle: String) {
         self.defaultBreakTitle = defaultBreakTitle
-        self.logos = logos.enumerated().map { index, url in
-            let image = NSImage(contentsOf: url)?.cgImage(forProposedRect: nil, context: nil, hints: nil)
-            if image == nil { Log.info("logo \(index + 1) cannot be loaded: \(url.path)") }
-            return image
-        }
         for player in [playerA, playerB] {
             player.automaticallyWaitsToMinimizeStalling = false
             player.actionAtItemEnd = .pause
@@ -63,6 +58,15 @@ final class PlaybackEngine: Player {
         guard let duration = player.currentItem?.duration.seconds, duration.isFinite else { return nil }
         let position = player.currentTime().seconds
         return (position.isFinite ? min(max(position, 0), duration) : 0, duration)
+    }
+
+    // Layers already showing a logo keep their image; the new ones apply from the next cover or GO.
+    func setLogos(_ urls: [URL]) {
+        logos = urls.enumerated().map { index, url in
+            let image = NSImage(contentsOf: url)?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            if image == nil { Log.info("logo \(index + 1) cannot be loaded: \(url.path)") }
+            return image
+        }
     }
 
     func logo(_ number: Int) -> CGImage? {

@@ -17,7 +17,8 @@ time. Note every surprise in the log at the bottom; it drives v0.2.
    6. Unplug HDMI during a clip: nothing on the laptop panel, red NO PROJECTOR. Replug: picture returns in the same
       state. Write down the projector's refresh rates from the top bar.
    7. `grep "NOT ready" ~/Library/Logs/Attacca/*.log` is empty.
-4. Load the real show (`Open folder` on the clip folder, or the concert file). Preflight line is green.
+4. Load the real show (Open in the top bar, then the clip folder or the concert file). Preflight line is green;
+   click it for the list, tick the manual checks.
 
 ## During rehearsal (operator drives, owner beside)
 

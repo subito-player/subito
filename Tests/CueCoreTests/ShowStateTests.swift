@@ -382,6 +382,15 @@ extension ShowState {
         #expect(state.muted)
     }
 
+    @Test func recoveryRestoresConcertWithoutAConfirmationAndSoundStaysLocked() {
+        var state = ShowState.loaded()
+        state.restoreMode(.concert)
+        #expect(state.mode == .concert)
+        #expect(state.pending == nil)
+        #expect(state.send(.toggleMute) == [.notice(.soundLockedInConcert)])
+        #expect(state.muted)
+    }
+
     @Test func modeSwitchNeedsTwoPressesAndLeavesTheOutputAlone() {
         var state = ShowState.clip1LiveOnA()
         state.send(.toggleCover(.black))
@@ -482,5 +491,152 @@ extension ShowState {
 
         #expect(state.replaceCues([]) == [])
         #expect(state.armedIndex == nil)
+    }
+}
+
+@Suite struct EditLockTests {
+    @Test func rehearsalEditsAndConcertLocksUntilAConfirmedUnlock() {
+        var state = ShowState.loaded()
+        #expect(state.canEdit)
+        #expect(state.send(.unlockEditing) == [])
+        #expect(state.pending == nil)
+        state.send(.requestMode(.concert))
+        state.send(.requestMode(.concert))
+        #expect(!state.canEdit)
+
+        #expect(state.send(.unlockEditing, at: 1) == [.notice(.confirmUnlock)])
+        #expect(!state.canEdit)
+        #expect(state.send(.unlockEditing, at: 2) == [])
+        #expect(state.editUnlocked)
+        #expect(state.canEdit)
+        #expect(state.send(.unlockEditing, at: 3) == [])
+        #expect(state.send(.lockEditing, at: 4) == [])
+        #expect(!state.canEdit)
+    }
+
+    @Test func unlockConfirmationExpiresAfter3s() {
+        var state = ShowState.loaded()
+        state.restoreMode(.concert)
+        state.send(.unlockEditing)
+        #expect(state.send(.unlockEditing, at: 3.5) == [.notice(.confirmUnlock)])
+        #expect(!state.canEdit)
+        #expect(state.send(.unlockEditing, at: 4) == [])
+        #expect(state.canEdit)
+    }
+
+    @Test func switchingModeLocksAgain() {
+        var state = ShowState.clip1LiveOnA()
+        state.restoreMode(.concert)
+        state.send(.unlockEditing)
+        state.send(.unlockEditing)
+        state.send(.requestMode(.rehearsal))
+        state.send(.requestMode(.rehearsal))
+        #expect(!state.editUnlocked)
+        #expect(state.canEdit)
+        state.send(.requestMode(.concert))
+        state.send(.requestMode(.concert))
+        #expect(!state.canEdit)
+        #expect(state.base == .clip(.a))
+        #expect(state.livePlaying)
+    }
+}
+
+@Suite struct ApplyEditTests {
+    private static let shifted = Array(0..<show.count).map { Optional($0 + 1) }
+
+    @Test func liveArmedParkCoverAndPlayStateSurviveAnInsert() {
+        var state = ShowState.clip1LiveOnA()
+        state.ready(.b, 2)
+        state.send(.parkArmedAt(30))
+        state.send(.toggleCover(.black))
+        let cues = [Cue(kind: .black, movieIndex: nil)] + show
+        #expect(state.applyEdit(cues: cues, indexMap: Self.shifted) == [])
+        #expect(state.cues == cues)
+        #expect(state.liveIndex == 2)
+        #expect(state.armedIndex == 3)
+        #expect(state.armedReady)
+        #expect(state.armedAt == 30)
+        #expect(state.base == .clip(.a))
+        #expect(state.cover == .black)
+        #expect(state.livePlaying)
+        #expect(state.send(.go).prefix(4) == [.show(.clip(.b)), .setCover(nil), .play(.b), .pause(.a)])
+        #expect(state.liveIndex == 3)
+    }
+
+    @Test func deletedArmedCueArmsTheNextCueThatStays() {
+        var state = ShowState.clip1LiveOnA()
+        state.send(.arm(index: 4))
+        let cues = Array(show[0..<3]) + show[5...]
+        #expect(
+            state.applyEdit(cues: cues, indexMap: [0, 1, 2, nil, nil, 3, 4, 5]) == [.load(.b, url(show[5]), at: 0)])
+        #expect(state.armedIndex == 3)
+        #expect(!state.armedReady)
+        #expect(state.liveIndex == 1)
+        #expect(state.base == .clip(.a))
+
+        var black = ShowState.clip1LiveOnA()
+        #expect(
+            black.applyEdit(
+                cues: show.enumerated().filter { $0.offset != 2 }.map(\.element), indexMap: [0, 1, nil, 2, 3, 4, 5, 6])
+                == [])
+        #expect(black.armedIndex == 2)
+        #expect(black.armedReady)
+    }
+
+    @Test func deletingTheLastArmedCueLeavesNothingArmed() {
+        var state = ShowState.clip1LiveOnA()
+        state.send(.arm(index: 7))
+        #expect(state.applyEdit(cues: Array(show.dropLast()), indexMap: [0, 1, 2, 3, 4, 5, 6, nil]) == [])
+        #expect(state.armedIndex == nil)
+        #expect(state.send(.go) == [.notice(.nothingArmed)])
+    }
+
+    @Test func armedClipWhoseFileChangedLoadsAgain() {
+        var state = ShowState.clip1LiveOnA()
+        state.ready(.b, 2)
+        state.send(.parkArmedAt(30))
+        var cues = show
+        cues[2] = clipCue(9, movie: 0)
+        #expect(state.applyEdit(cues: cues, indexMap: show.indices.map { $0 }) == [.load(.b, url(cues[2]), at: 0)])
+        #expect(state.armedIndex == 2)
+        #expect(!state.armedReady)
+        #expect(state.armedAt == 0)
+    }
+
+    @Test func aShowBuiltFromNothingArmsItsFirstCue() {
+        var state = ShowState()
+        let cues = [clipCue(1, movie: 0)]
+        #expect(state.applyEdit(cues: cues, indexMap: []) == [.load(.a, url(cues[0]), at: 0)])
+        #expect(state.armedIndex == 0)
+
+        var ended = ShowState.loaded()
+        ended.send(.arm(index: 7))
+        ended.send(.go)
+        #expect(ended.applyEdit(cues: show, indexMap: show.indices.map { $0 }) == [])
+        #expect(ended.armedIndex == nil)
+    }
+
+    @Test func aCueAddedAfterTheLastLiveOneIsArmedWithoutTouchingTheOutput() {
+        var logo = ShowState.loaded()
+        logo.send(.arm(index: 7))
+        logo.send(.go)
+        #expect(
+            logo.applyEdit(cues: show + [Cue(kind: .black, movieIndex: nil)], indexMap: show.indices.map { $0 }) == [])
+        #expect(logo.armedIndex == 8)
+        #expect(logo.armedReady)
+        #expect(logo.base == .logo(2))
+
+        let cues = [clipCue(0, movie: 0)]
+        var clip = ShowState.loaded(cues)
+        clip.ready(.a, 0)
+        clip.send(.go)
+        clip.send(.toggleCover(.black))
+        let grown = cues + [clipCue(1, movie: 0)]
+        #expect(clip.applyEdit(cues: grown, indexMap: [0]) == [.load(.b, url(grown[1]), at: 0)])
+        #expect(clip.armedIndex == 1)
+        #expect(clip.liveIndex == 0)
+        #expect(clip.base == .clip(.a))
+        #expect(clip.cover == .black)
+        #expect(clip.livePlaying)
     }
 }

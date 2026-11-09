@@ -1,7 +1,7 @@
-import AVFoundation
 import AppKit
 import CueCore
 import Observation
+import UniformTypeIdentifiers
 
 enum KeyResult: Equatable {
     case command(Command)
@@ -32,7 +32,10 @@ enum OutputChoice: Equatable {
 
 enum Banner: Equatable {
     case focusLost
+    case filePicker
+    case typing
     case confirmOutput(OutputChoice)
+    case confirmDelete(Place)
     case confirm(Notice)
     case noProjector
 }
@@ -40,13 +43,39 @@ enum Banner: Equatable {
 enum Problem: Equatable {
     case show(String)
     case keyMap(String)
+    case save(file: String, reason: String)
 }
 
-private struct LoadedShow {
-    var title: String?
-    var cues: [Cue] = []
-    var logos: [URL] = []
-    var movieTitles: [String] = []
+// Editor messages for the status line; they fade like notices.
+enum EditNotice: Error, Equatable {
+    case refused(EditRefusal)
+    case selectMovie
+    case emptyTitle
+    case invalidTime
+    case invalidMinutes
+    case cannotAddMovie(String)
+    case concertAsMovie
+}
+
+// An inspector field; its place pins a draft to one item, so it never lands on another.
+enum Field: Hashable {
+    case showTitle
+    case movieTitle(URL)
+    case clipTitle(Place)
+    case plannedEnd(Place)
+    case tail(Place)
+    case breakText(Place)
+    case breakMinutes(Place)
+}
+
+// Shown from a crash relaunch until the first GO.
+enum RecoveryNotice: Equatable {
+    case recovered(index: Int?, position: Double)
+    case skipped
+}
+
+enum ManualCheck: CaseIterable {
+    case focus, updates, wallpaper, backup
 }
 
 @MainActor
@@ -56,14 +85,13 @@ final class AppModel {
     static let tickSeconds: TimeInterval = 0.1
 
     let engine: PlaybackEngine
-    let title: String?
-    // Indexed by Cue.movieIndex.
-    let movieTitles: [String]
+    private(set) var document: ShowDocument?
 
     var lang: Lang {
         didSet {
             lang.save()
             engine.defaultBreakTitle = strings.breakTitle
+            onLanguageChange()
             Log.info("language \(lang.rawValue)")
         }
     }
@@ -84,8 +112,34 @@ final class AppModel {
     private(set) var liveTime: PlayTime?
     private(set) var armedTime: PlayTime?
     private(set) var breakCountdown: String?
+    private(set) var showFindings: [Finding] = []
+    private(set) var systemFindings: [Finding] = []
+    private(set) var checking = false
+    private(set) var preflightOpen = false
+    private(set) var recoveryNotice: RecoveryNotice?
+    var manualChecks: Set<ManualCheck> = []
+    var filePickerOpen = false
+    // Set by the control window while a text field has the keyboard.
+    var typing = false
+    private(set) var editing = false
+    private(set) var selection: Place?
+    private(set) var deletePending: Place?
+    private(set) var editNotice: EditNotice?
+    private(set) var drafts: [Field: String] = [:]
 
     @ObservationIgnored var onOutputChange: () -> Void = {}
+    @ObservationIgnored var onModeChange: (Mode) -> Void = { _ in }
+    @ObservationIgnored var onLanguageChange: () -> Void = {}
+    @ObservationIgnored private var appliedMode = Mode.rehearsal
+    @ObservationIgnored private var appliedUnlock = false
+    @ObservationIgnored private var deletePendingUntil = Date.distantPast
+    @ObservationIgnored private var editNoticeAt = Date.distantPast
+    @ObservationIgnored private var focusedField: Field?
+    // Esc'd until focused again, so the field's own end-of-editing write cannot bring the text back.
+    @ObservationIgnored private var cancelledField: Field?
+    @ObservationIgnored private var dragged: (place: Place, token: String)?
+    @ObservationIgnored private var probes: [URL: ClipProbe] = [:]
+    @ObservationIgnored private var logoFindings: [Finding] = []
     @ObservationIgnored private(set) var quitConfirmed = false
     @ObservationIgnored private var noticeAt = Date.distantPast
     @ObservationIgnored private var outputPendingUntil = Date.distantPast
@@ -93,21 +147,16 @@ final class AppModel {
     @ObservationIgnored private var watcher: DisplayWatcher?
     @ObservationIgnored private var cursorGuard: CursorGuard?
     @ObservationIgnored private var timer: Timer?
+    @ObservationIgnored private var showCheck: Task<Void, Never>?
+    @ObservationIgnored private var stateSavedAt: TimeInterval = 0
+    @ObservationIgnored private var launchPath: String?
+    @ObservationIgnored private var recoveries: Int
+    @ObservationIgnored private var refreshRates: [CGDirectDisplayID: [Double]] = [:]
 
-    init(showPath: String?) {
+    // recoveries: the consecutive recovered-launch count this launch writes until the first GO.
+    init(plan: LaunchPlan, recoveries: Int, mode: Mode) {
         let lang = Lang.saved
         var problems: [Problem] = []
-        var show = LoadedShow()
-        if let showPath {
-            do {
-                show = try Self.loadShow(showPath)
-            } catch {
-                let name = URL(fileURLWithPath: showPath).lastPathComponent
-                let reason = (error as? ShowError)?.description ?? "\(name): \(error.localizedDescription)"
-                Log.info("error: \(reason)")
-                problems.append(.show(reason))
-            }
-        }
         var keyMap: KeyMap?
         do {
             keyMap = try KeyMap(json: Data(KeyMap.defaultJSON.utf8))
@@ -118,9 +167,8 @@ final class AppModel {
         self.lang = lang
         self.keyMap = keyMap
         self.problems = problems
-        title = show.title
-        movieTitles = show.movieTitles
-        engine = PlaybackEngine(logos: show.logos, defaultBreakTitle: Strings(lang: lang).breakTitle)
+        self.recoveries = recoveries
+        engine = PlaybackEngine(defaultBreakTitle: Strings(lang: lang).breakTitle)
 
         engine.onEvent = { [weak self] command in self?.send(command) }
         engine.onLoadError = { [weak self] _, url, message, warning in
@@ -130,11 +178,18 @@ final class AppModel {
         cursorGuard = CursorGuard { [weak self] in self?.watcher?.outputDisplay }
         refreshDisplays()
         audioDevice = AudioOutput.defaultDeviceName()
-        AudioOutput.observeDefaultDevice { [weak self] in self?.audioDevice = AudioOutput.defaultDeviceName() }
+        AudioOutput.observeDefaultDevice { [weak self] in
+            self?.audioDevice = AudioOutput.defaultDeviceName()
+            self?.checkSystem()
+        }
+        PreflightRunner.observePowerSource { [weak self] in self?.checkSystem() }
 
-        // init(cues:) cannot return effects, so the first arm reaches the engine this way.
-        run(state.replaceCues(show.cues), label: "open", receivedAt: ProcessInfo.processInfo.systemUptime)
-        loadDurations(of: show.cues)
+        state.restoreMode(mode)
+        appliedMode = mode
+        Log.info("mode \(mode.rawValue)")
+        start(plan)
+        checkSystem()
+        saveState()
         let timer = Timer(timeInterval: Self.tickSeconds, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
@@ -145,6 +200,10 @@ final class AppModel {
 
     var strings: Strings {
         Strings(lang: lang)
+    }
+
+    var title: String? {
+        document?.title
     }
 
     var liveSlot: Slot? {
@@ -161,7 +220,10 @@ final class AppModel {
     // Pending confirmations outrank the no-projector banner because they last only 3 s.
     var banner: Banner? {
         if focusLost { return .focusLost }
+        if filePickerOpen { return .filePicker }
+        if typing { return .typing }
         if let outputPending { return .confirmOutput(outputPending) }
+        if let deletePending { return .confirmDelete(deletePending) }
         if let pending { return .confirm(pending) }
         return output == .missing ? .noProjector : nil
     }
@@ -179,6 +241,25 @@ final class AppModel {
         }
     }
 
+    var findings: [Finding] {
+        showFindings + systemFindings
+    }
+
+    var blockedCues: Set<Int> {
+        Set(showFindings.filter { $0.severity == .block }.compactMap(\.cueIndex))
+    }
+
+    // Clips the engine already reported stay out of the count, so one bad file is not announced twice.
+    var blockedClipCount: Int {
+        let reported = Set(loadErrors.filter { !$0.warning }.map(\.url))
+        return blockedCues.filter { index in
+            guard state.cues.indices.contains(index), case .clip(_, let url) = state.cues[index].kind else {
+                return false
+            }
+            return !reported.contains(url)
+        }.count
+    }
+
     func cue(for url: URL) -> Cue? {
         state.cues.first { cue in
             if case .clip(_, let clipURL) = cue.kind { clipURL == url } else { false }
@@ -189,7 +270,10 @@ final class AppModel {
         _ command: Command, chord: KeyChord? = nil,
         receivedAt: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) {
-        if !command.isEngineEvent { update(\.outputPending, nil) }
+        if !command.isEngineEvent {
+            update(\.outputPending, nil)
+            update(\.deletePending, nil)
+        }
         if let chord {
             lastKey = LastKey(name: KeyInput.label(of: chord), result: .command(command))
             Log.deferred("key \(KeyInput.name(of: chord)) -> \(command)")
@@ -198,6 +282,71 @@ final class AppModel {
             durations[url] = duration
         }
         run(state.handle(command, now: Date()), label: "\(command)", receivedAt: receivedAt)
+        if recoveryNotice != nil || recoveries > 0, state.liveIndex != nil {
+            recoveryNotice = nil
+            recoveries = 0
+            saveState()
+        }
+    }
+
+    // Replaces the cue list; the projector keeps whatever it shows until the next GO.
+    @discardableResult
+    func open(_ path: String) -> Bool {
+        problems.removeAll { if case .show = $0 { true } else { false } }
+        do {
+            let document = try ShowDocument.load(URL(fileURLWithPath: path).standardizedFileURL)
+            self.document = document
+            problems.removeAll { if case .save = $0 { true } else { false } }
+            recoveryNotice = nil
+            loadErrors.removeAll()
+            selection = nil
+            deletePending = nil
+            drafts = [:]
+            focusedField = nil
+            engine.setLogos(document.logos)
+            Log.info("open \(document.url.path)")
+            run(state.replaceCues(document.cues), label: "open", receivedAt: ProcessInfo.processInfo.systemUptime)
+            probes = [:]
+            let logos = document.logos
+            logoFindings = logos.indices.compactMap { index -> Finding? in
+                guard engine.logo(index + 1) == nil else { return nil }
+                return Finding(severity: .warn, kind: .logo, detail: "\(index + 1) · \(logos[index].lastPathComponent)")
+            }
+            checkShow()
+            return true
+        } catch {
+            let name = URL(fileURLWithPath: path).lastPathComponent
+            let reason = (error as? ShowError)?.description ?? "\(name): \(error.localizedDescription)"
+            Log.info("error: \(reason)")
+            problems.append(.show(reason))
+            return false
+        }
+    }
+
+    func togglePreflight() {
+        preflightOpen.toggle()
+        if preflightOpen { checkSystem() }
+    }
+
+    func saveState(cleanExit: Bool = false) {
+        stateSavedAt = ProcessInfo.processInfo.systemUptime
+        // Until the launch's show opens, the file holds the only copy of what to recover.
+        if document == nil, launchPath != nil { return }
+        var liveIndex = state.liveIndex
+        var position = liveIndex == nil ? nil : liveSlot.flatMap { engine.time($0)?.position }
+        // Before the first GO after a recovery, the operator's latest park is what a second crash brings back.
+        if liveIndex == nil, case .recovered(.some, _)? = recoveryNotice {
+            liveIndex = state.armedIndex
+            position = state.armedAt
+        }
+        let snapshot = RecoveryState(
+            showPath: document?.url.path, mode: state.mode, liveIndex: liveIndex, livePosition: position,
+            cover: state.cover, cleanExit: cleanExit, recoveries: cleanExit ? 0 : recoveries, savedAt: Date())
+        if cleanExit {
+            StateFile.saveNow(snapshot)
+        } else {
+            StateFile.save(snapshot)
+        }
     }
 
     // Held keys must not repeat GO or seeks; every key is swallowed so nothing beeps on stage.
@@ -219,6 +368,7 @@ final class AppModel {
 
     // Press twice within the confirm window, like every other choice that can change the projector.
     func pickOutput(_ choice: OutputChoice) {
+        guard state.mode == .rehearsal else { return }
         let current: OutputChoice? =
             automaticOutput ? .automatic : displays.first(where: \.saved).map { .display($0.id) }
         guard choice != current else { return }
@@ -235,6 +385,302 @@ final class AppModel {
         refreshDisplays()
     }
 
+    // --- Modes and editor ---
+
+    var canEdit: Bool {
+        state.canEdit
+    }
+
+    var rows: [Row] {
+        document?.rows ?? []
+    }
+
+    var selectedRow: Row? {
+        selection.flatMap { place in rows.first { $0.place == place } }
+    }
+
+    func isLocked(_ place: Place) -> Bool {
+        document?.isLocked(place, live: state.liveIndex) ?? false
+    }
+
+    func requestMode(_ mode: Mode) {
+        commitDrafts()
+        send(.requestMode(mode))
+    }
+
+    func unlockEditing() {
+        send(.unlockEditing)
+    }
+
+    func lockEditing() {
+        commitDrafts()
+        send(.lockEditing)
+    }
+
+    func toggleEditing() {
+        commitDrafts()
+        editing = !editing && canEdit && document != nil
+        if !editing {
+            selection = nil
+            deletePending = nil
+        }
+    }
+
+    func select(_ place: Place?) {
+        guard selection != place else { return }
+        commitDrafts()
+        selection = place
+    }
+
+    // Press twice within the confirm window; a delete cannot be undone.
+    func requestDelete(_ place: Place) {
+        let now = Date()
+        guard deletePending == place, now < deletePendingUntil else {
+            deletePending = place
+            deletePendingUntil = now.addingTimeInterval(ShowState.confirmWindow)
+            return
+        }
+        deletePending = nil
+        edit(.delete(place))
+    }
+
+    // The token tells our own row drags from text dragged in from other apps.
+    func startDrag(_ place: Place) -> String {
+        let token = "row-" + UUID().uuidString
+        dragged = (place, token)
+        return token
+    }
+
+    func drop(token: String, onto target: Place) {
+        guard let dragged, dragged.token == token else { return }
+        self.dragged = nil
+        guard dragged.place.file == target.file, dragged.place != target else { return }
+        edit(.move(dragged.place, to: target.index))
+    }
+
+    func add(_ item: Item) {
+        guard let place = document?.insertionPlace(for: .item, selected: selection) else { return }
+        edit(.insert(item, at: place))
+    }
+
+    // File-name order, so NN_ prefixes keep their sequence whatever order the picker or Finder reports.
+    func addClips(_ urls: [URL]) {
+        let clips = urls.filter(Self.isVideo).sorted {
+            $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
+        }
+        guard canEdit, !clips.isEmpty, let document else { return }
+        guard let place = document.insertionPlace(for: .clip, selected: selection) else {
+            return showEditNotice(.selectMovie)
+        }
+        edit(.insertClips(clips, at: place))
+    }
+
+    func addMovie(_ url: URL) {
+        guard canEdit, let place = document?.insertionPlace(for: .movie, selected: selection) else { return }
+        // A concert used as a movie would stop its own concert from loading.
+        guard !url.lastPathComponent.hasSuffix(".concert.json") else {
+            return showEditNotice(.concertAsMovie)
+        }
+        do {
+            let (file, movie) = try ShowLoader.openMovie(url.standardizedFileURL)
+            edit(.insertMovie(movie, file, at: place.index))
+        } catch {
+            let reason = (error as? ShowError)?.description ?? error.localizedDescription
+            Log.info("error: cannot add movie \(url.path): \(reason)")
+            showEditNotice(.cannotAddMovie(reason))
+        }
+    }
+
+    func createConcert(at url: URL) {
+        guard canEdit else { return }
+        do {
+            open(try ShowLoader.createConcert(at: url.standardizedFileURL).path)
+        } catch {
+            Log.info("error: cannot create \(url.path): \(error.localizedDescription)")
+            problems.append(.save(file: url.lastPathComponent, reason: error.localizedDescription))
+        }
+    }
+
+    func setCountdown(_ place: Place, _ on: Bool) {
+        commitDrafts()
+        guard let item = breakItem(at: place) else { return }
+        perform(.setBreak(place, minutes: item.minutes, countdown: on))
+    }
+
+    func edit(_ op: Edit) {
+        commitDrafts()
+        perform(op)
+    }
+
+    func draft(_ field: Field) -> String {
+        drafts[field] ?? value(of: field)
+    }
+
+    func setDraft(_ field: Field, _ text: String) {
+        if field != cancelledField, drafts[field] != text { drafts[field] = text }
+    }
+
+    func focusChanged(_ field: Field, focused: Bool) {
+        if focused {
+            focusedField = field
+            cancelledField = nil
+            return
+        }
+        if focusedField == field { focusedField = nil }
+        commit(field)
+    }
+
+    // Esc: the field goes back to the saved value.
+    func cancelTyping() {
+        guard let focusedField else { return }
+        drafts[focusedField] = nil
+        cancelledField = focusedField
+    }
+
+    // Before any other edit, so a draft pinned to a place never outlives the items around it.
+    func commitDrafts() {
+        for field in drafts.keys { commit(field) }
+    }
+
+    func commit(_ field: Field) {
+        guard let text = drafts.removeValue(forKey: field), text != value(of: field) else { return }
+        switch change(field, to: text) {
+        case .success(let op): perform(op)
+        case .failure(let notice): showEditNotice(notice)
+        }
+    }
+
+    static func isVideo(_ url: URL) -> Bool {
+        UTType(filenameExtension: url.pathExtension)?.conforms(to: .movie) ?? false
+    }
+
+    private func perform(_ op: Edit) {
+        guard canEdit, let document else { return }
+        switch document.apply(op, live: state.liveIndex) {
+        case .failure(let refusal):
+            Log.info("edit refused (\(refusal)): \(Self.describe(op))")
+            showEditNotice(.refused(refusal))
+        case .success(let result):
+            Log.info("edit \(Self.describe(op))")
+            self.document = result.document
+            // Items may have shifted: a pending delete must never land on another item.
+            deletePending = nil
+            switch op {
+            case .delete: selection = nil
+            case .insert, .insertClips, .insertMovie, .move: selection = result.touched
+            default: break
+            }
+            for file in result.changed { write(file, of: result.document) }
+            if case .recovered(let index?, let position)? = recoveryNotice {
+                let map = result.indexMap
+                recoveryNotice = .recovered(index: map.indices.contains(index) ? map[index] : nil, position: position)
+            }
+            let effects = state.applyEdit(cues: result.document.cues, indexMap: result.indexMap)
+            run(effects, label: "edit", receivedAt: ProcessInfo.processInfo.systemUptime)
+            let urls = Set(
+                state.cues.compactMap { cue -> URL? in if case .clip(_, let url) = cue.kind { url } else { nil } })
+            loadErrors.removeAll { !urls.contains($0.url) }
+            // An added clip is probed again, so a fixed or re-exported file is not judged by its old probe.
+            let kept = Set(result.indexMap.compactMap { $0 })
+            for (index, cue) in state.cues.enumerated() where !kept.contains(index) {
+                if case .clip(_, let url) = cue.kind {
+                    probes[url] = nil
+                    durations[url] = nil
+                }
+            }
+            checkShow()
+        }
+    }
+
+    // The in-memory show keeps the change either way; the status line says the file is behind.
+    private func write(_ file: URL, of document: ShowDocument) {
+        let name = file.lastPathComponent
+        problems.removeAll { if case .save(name, _) = $0 { true } else { false } }
+        do {
+            try document.save(file)
+        } catch {
+            Log.info("error: cannot save \(file.path): \(error.localizedDescription)")
+            problems.append(.save(file: name, reason: error.localizedDescription))
+        }
+    }
+
+    private func value(of field: Field) -> String {
+        switch field {
+        case .showTitle: document?.title ?? ""
+        case .movieTitle(let url): document?.movies[url]?.title ?? ""
+        case .clipTitle(let place): clip(at: place)?.title ?? ""
+        case .plannedEnd(let place): clip(at: place)?.plannedEndS.map(Clock.text) ?? ""
+        case .tail(let place): clip(at: place)?.tailS.map(Clock.text) ?? ""
+        case .breakText(let place): breakItem(at: place)?.text ?? ""
+        case .breakMinutes(let place): breakItem(at: place).map { String(format: "%g", $0.minutes) } ?? ""
+        }
+    }
+
+    private func change(_ field: Field, to text: String) -> Result<Edit, EditNotice> {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch field {
+        case .showTitle:
+            guard let document, !trimmed.isEmpty else { return .failure(.emptyTitle) }
+            return .success(document.concert == nil ? .renameMovie(document.url, trimmed) : .renameConcert(trimmed))
+        case .movieTitle(let url):
+            return trimmed.isEmpty ? .failure(.emptyTitle) : .success(.renameMovie(url, trimmed))
+        case .clipTitle(let place):
+            return .success(.renameClip(place, trimmed))
+        case .breakText(let place):
+            return .success(.setBreakText(place, trimmed))
+        case .plannedEnd(let place), .tail(let place):
+            guard let clip = clip(at: place) else { return .failure(.refused(.noSuchItem)) }
+            let seconds = trimmed.isEmpty ? nil : Clock.seconds(from: trimmed)
+            guard trimmed.isEmpty || seconds != nil else { return .failure(.invalidTime) }
+            if case .tail = field {
+                return .success(.setClipTimes(place, plannedEndS: clip.plannedEndS, tailS: seconds))
+            }
+            return .success(.setClipTimes(place, plannedEndS: seconds, tailS: clip.tailS))
+        case .breakMinutes(let place):
+            guard let item = breakItem(at: place) else { return .failure(.refused(.noSuchItem)) }
+            let minutes = Double(trimmed.replacingOccurrences(of: ",", with: "."))
+            guard let minutes, minutes.isFinite, minutes >= 0 else { return .failure(.invalidMinutes) }
+            return .success(.setBreak(place, minutes: minutes, countdown: item.countdown))
+        }
+    }
+
+    private func clip(at place: Place) -> Clip? {
+        if case .clip(let clip)? = document?.item(at: place) { clip } else { nil }
+    }
+
+    private func breakItem(at place: Place) -> BreakItem? {
+        if case .breakScreen(let item)? = document?.item(at: place) { item } else { nil }
+    }
+
+    private func showEditNotice(_ notice: EditNotice) {
+        Log.deferred("edit notice: \(Strings(lang: .en).editNotice(notice))")
+        editNotice = notice
+        editNoticeAt = Date()
+    }
+
+    // Concert hides the rest of the Mac and locks the editor; an unlock opens only the editor.
+    private func syncMode() {
+        if state.mode != appliedMode {
+            appliedMode = state.mode
+            Log.info("mode \(state.mode.rawValue)")
+            onModeChange(state.mode)
+        }
+        if state.editUnlocked != appliedUnlock {
+            appliedUnlock = state.editUnlocked
+            Log.info(appliedUnlock ? "editing unlocked" : "editing locked")
+        }
+        guard !state.canEdit, editing || selection != nil || !drafts.isEmpty else { return }
+        editing = false
+        selection = nil
+        deletePending = nil
+        drafts = [:]
+    }
+
+    private static func describe(_ op: Edit) -> String {
+        guard case .insertMovie(let movie, let file, let index) = op else { return "\(op)" }
+        return "insertMovie(\(movie.title), \(file.path), at: \(index))"
+    }
+
     private func run(_ effects: [Effect], label: String, receivedAt: TimeInterval) {
         for case .load(_, let url, _) in effects where loadErrors.contains(where: { $0.url == url }) {
             loadErrors.removeAll { $0.url == url }
@@ -245,8 +691,11 @@ final class AppModel {
             self.notice = notice
             noticeAt = Date()
         }
+        syncMode()
+        saveState()
         tick()
         if effects.contains(.quit) {
+            commitDrafts()
             quitConfirmed = true
             // Async because this can run inside applicationShouldTerminate.
             DispatchQueue.main.async { NSApp.terminate(nil) }
@@ -260,11 +709,113 @@ final class AppModel {
         update(\.pending, state.activePending(at: now))
         if notice != nil, now.timeIntervalSince(noticeAt) >= Self.noticeSeconds { notice = nil }
         if outputPending != nil, now >= outputPendingUntil { outputPending = nil }
+        if deletePending != nil, now >= deletePendingUntil { deletePending = nil }
+        if editNotice != nil, now.timeIntervalSince(editNoticeAt) >= Self.noticeSeconds { editNotice = nil }
         var countdown: String?
         if case .breakScreen(let item, let startedAt) = state.base {
             countdown = PlaybackEngine.breakCountdown(item, startedAt: startedAt, now: now)
         }
         update(\.breakCountdown, countdown)
+        if ProcessInfo.processInfo.systemUptime - stateSavedAt >= 1 { saveState() }
+    }
+
+    private func start(_ plan: LaunchPlan) {
+        switch plan {
+        case .empty:
+            return
+        case .open(let path):
+            launchPath = path
+            open(path)
+        case .skipRecovery(let path, let mode):
+            launchPath = path
+            guard open(path) else { return }
+            state.restoreMode(mode)
+            recoveryNotice = .skipped
+            Log.info("recovery skipped after \(recoveries) recovered launches crashed: \(path), mode \(mode)")
+        case .recover(let path, let mode, let index, let position):
+            launchPath = path
+            guard open(path) else { return }
+            state.restoreMode(mode)
+            let armed = index.flatMap { state.cues.indices.contains($0) ? $0 : nil }
+            recoveryNotice = .recovered(index: armed, position: position)
+            Log.info("recovered \(path): mode \(mode), arming \(armed.map(String.init) ?? "nothing") at \(position)")
+            guard let armed else { return }
+            let now = Date()
+            let effects = state.handle(.arm(index: armed), now: now) + state.handle(.parkArmedAt(position), now: now)
+            run(effects, label: "recover", receivedAt: ProcessInfo.processInfo.systemUptime)
+        }
+    }
+
+    // Probes run off the main thread and are kept per file, so an edit probes only the clips it added.
+    private func checkShow() {
+        showCheck?.cancel()
+        let urls = Set(
+            state.cues.compactMap { cue -> URL? in if case .clip(_, let url) = cue.kind { url } else { nil } })
+        let missing = urls.subtracting(probes.keys)
+        evaluateShow(pending: missing)
+        checking = !missing.isEmpty
+        guard !missing.isEmpty else { return }
+        showCheck = Task { [weak self] in
+            await withTaskGroup(of: (URL, ClipProbe).self) { group in
+                for url in missing {
+                    group.addTask { (url, await PreflightRunner.probe(url)) }
+                }
+                for await (url, probe) in group where !Task.isCancelled {
+                    self?.probed(url, probe)
+                }
+            }
+            guard !Task.isCancelled, let self else { return }
+            self.checking = false
+            self.evaluateShow(pending: [])
+            for finding in self.showFindings {
+                let cue = finding.cueIndex.map(String.init) ?? "-"
+                Log.deferred("preflight \(finding.severity) cue \(cue) \(finding.kind): \(finding.detail)")
+            }
+            let blocks = self.showFindings.filter { $0.severity == .block }.count
+            let warnings = self.showFindings.filter { $0.severity == .warn }.count
+            Log.info("preflight show: \(missing.count) files, \(blocks) blocking, \(warnings) warnings")
+        }
+    }
+
+    // A clip still being probed stays out until its probe arrives, instead of showing as missing.
+    private func evaluateShow(pending: Set<URL>) {
+        let cues = state.cues
+        let findings = Preflight.evaluate(cues: cues, probes: probes).filter { finding in
+            guard let index = finding.cueIndex, case .clip(_, let url) = cues[index].kind else { return true }
+            return !pending.contains(url)
+        }
+        showFindings = findings + logoFindings
+    }
+
+    private func probed(_ url: URL, _ probe: ClipProbe) {
+        probes[url] = probe
+        noteDuration(url, probe.duration)
+        Log.deferred(
+            "probe \(url.lastPathComponent): exists \(probe.exists), playable \(probe.playable), "
+                + "\(probe.width)x\(probe.height), \(probe.fps) fps, \(probe.codec), \(probe.duration) s, "
+                + "video \(probe.hasVideo), audio \(probe.hasAudio)")
+    }
+
+    private func checkSystem() {
+        let rates = outputDisplay.map(rates(of:)) ?? []
+        let probe = PreflightRunner.system(output: output, availableHz: rates, soundDevice: audioDevice)
+        let findings = Preflight.evaluate(system: probe)
+        guard findings != systemFindings else { return }
+        systemFindings = findings
+        let summary = findings.map { "\($0.kind) \($0.severity)\($0.detail.isEmpty ? "" : " \($0.detail)")" }
+        Log.info("preflight system: \(summary.joined(separator: "; "))")
+    }
+
+    // Mode lists only change with a display reconfiguration, which clears the cache.
+    private func rates(of display: CGDirectDisplayID) -> [Double] {
+        if let cached = refreshRates[display] { return cached }
+        let rates = PreflightRunner.refreshRates(of: display)
+        refreshRates[display] = rates
+        return rates
+    }
+
+    private func noteDuration(_ url: URL, _ duration: Double) {
+        if duration.isFinite, duration > 0, durations[url] == nil { durations[url] = duration }
     }
 
     // Observation fires on every set, so unchanged values are skipped to keep the 10 Hz tick cheap.
@@ -280,6 +831,9 @@ final class AppModel {
         update(\.output, status)
         if case .attached = status { cursorGuard?.keepOffOutput() }
         refreshDisplays()
+        refreshRates = [:]
+        // The watcher's first report arrives from its own init; init checks once everything is set up.
+        if watcher != nil { checkSystem() }
         onOutputChange()
     }
 
@@ -292,47 +846,6 @@ final class AppModel {
     private func loadFailed(_ error: LoadError) {
         loadErrors.removeAll { $0.url == error.url }
         loadErrors.append(error)
-    }
-
-    private func loadDurations(of cues: [Cue]) {
-        var seen = Set<URL>()
-        for case .clip(_, let url) in cues.map(\.kind) where seen.insert(url).inserted {
-            Task { [weak self] in
-                guard let duration = try? await AVURLAsset(url: url).load(.duration), duration.seconds.isFinite,
-                    let self, self.durations[url] == nil
-                else { return }
-                self.durations[url] = duration.seconds
-            }
-        }
-    }
-
-    private static func loadShow(_ path: String) throws -> LoadedShow {
-        let url = URL(fileURLWithPath: path).standardizedFileURL
-        var isFolder: ObjCBool = false
-        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder), isFolder.boolValue {
-            let movieURL = try ShowLoader.importFolder(url)
-            return movieShow(try ShowLoader.loadMovie(at: movieURL), at: movieURL)
-        }
-        guard url.lastPathComponent.hasSuffix(".concert.json") else {
-            return movieShow(try ShowLoader.loadMovie(at: url), at: url)
-        }
-        let loaded = try ShowLoader.loadConcert(at: url)
-        // Loop logos fail as images and so count as missing, keeping logo numbers aligned.
-        let logos = loaded.concert.logos.map { logo in
-            switch logo {
-            case .image(let path), .loop(let path): ShowLoader.resolve(path, relativeTo: url)
-            }
-        }
-        let movieTitles = loaded.concert.items.compactMap { item -> String? in
-            guard case .movie(let ref) = item else { return nil }
-            return loaded.movies[ShowLoader.resolve(ref.file, relativeTo: url)]?.title ?? ref.file
-        }
-        return LoadedShow(
-            title: loaded.concert.title, cues: ShowLoader.flatten(loaded), logos: logos, movieTitles: movieTitles)
-    }
-
-    private static func movieShow(_ movie: Movie, at url: URL) -> LoadedShow {
-        LoadedShow(title: movie.title, cues: ShowLoader.flatten(movie: movie, at: url), movieTitles: [movie.title])
     }
 }
 
@@ -348,7 +861,7 @@ extension Command {
 extension Notice {
     fileprivate var isConfirmation: Bool {
         switch self {
-        case .confirmUnmute, .confirmMode, .confirmQuit: true
+        case .confirmUnmute, .confirmMode, .confirmUnlock, .confirmQuit: true
         default: false
         }
     }

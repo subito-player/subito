@@ -101,13 +101,17 @@ Space can never land in an alert.
 | Audio | muted at launch, M toggles, loud badge naming the device ("AUDIO ON → HDMI") for the whole room | forced mute, M disabled |
 | Banner | none | big CONCERT |
 
+The mode survives every launch: a clean launch restores the saved mode too, so concert stays concert.
+
 **Editor (v0.1, minimal):** new movie, new concert; add clips (file picker or drag in), black, break, logo, movie (to
 concert); drag reorder; delete (press twice); rename; planned end, tail, break minutes and countdown fields. Autosave,
 atomic write. Later: colours, briefs, undo, templates, duplicate.
+While an editor text field is being edited, keys go to the field (banner says so); Enter or Esc ends typing, and
+from then on keys drive the show again.
 
-**Control window (layout A, always dark):** top bar (mode toggle, concert title, projector/power/audio/Hz status
-dots, last key, HU/EN); left 30% two-level list (movie headers, items, LIVE red, ARMED amber); right LIVE and NEXT
-previews side by side (NEXT has its own small scrub bar for parking), progress bar with white planned-end and amber tail-end markers, big "to planned end" time,
+**Control window (layout A, always dark):** top bar (mode toggle, concert title, Open, projector/power/audio/Hz
+status dots, last key, HU/EN); left 30% two-level list (movie headers, items, LIVE red, ARMED amber); right LIVE and
+NEXT previews side by side (NEXT has its own small scrub bar for parking), progress bar with white planned-end and amber tail-end markers, big "to planned end" time,
 smaller "to clip end"; button row with every key action and its key; status line at bottom (plain language, no codec
 names). Window fills the laptop screen so there is nothing else to click. If the app loses focus: big red "keys not
 reaching the app, click here" banner.
@@ -116,10 +120,13 @@ reaching the app, click here" banner.
 duration, audio), projector modes, memory use, stress runner (random GO/BLACK/LOGO, logs timings).
 
 **Preflight** (launch and on load, results on control only): files exist; playable by AVFoundation (red if not, plain
-message); size, fps, codec, duration vs `planned_end_s + tail_s` (yellow if off by > 1 s or not 1920x1080 23.976,
-still plays); logos load; projector present and not mirrored; power adapter; current Hz and available rates;
-"Displays have separate Spaces" value; current sound output device (yellow if HDMI; app never changes it). Manual
-ticks: Focus/Do Not Disturb on, automatic updates off, black desktop wallpaper on every display, old rig ready.
+message); size, fps, codec, duration vs `planned_end_s + tail_s` (yellow if off by > 1 s plus one frame or not
+1920x1080 23.976, still plays); logos load; projector present and not mirrored (a projector mirroring the laptop is
+red, never an output); power adapter; current Hz and available rates; "Displays have separate Spaces" value; current
+sound output device (yellow if HDMI; app never changes it). Manual ticks: Focus/Do Not Disturb on, automatic updates
+off, black desktop wallpaper on every display, old rig ready. Status line shows the summary ("All good", "2 warnings",
+red "1 clip cannot play"); clicking it toggles the list (non-modal panel, ticks not saved). Blocked cues get a red dot
+in the cue list. System checks re-run on display, sound device and power changes.
 
 **Projector unplugged:** hide output window at the start of any display reconfiguration (macOS reports it for every
 display, so we can't tell which one is going away), never let macOS move it to the laptop. Cost: a brief desktop
@@ -132,8 +139,10 @@ are refused while the app runs.
 
 **Crash recovery:** state file written every second (open concert, mode, live item, position, cover). Relaunch: output
 black, same concert and mode, the previously live clip armed at its last position, status "Recovered. Was playing 03
-at 2:14." Only one instance may run. While the app is dead the projector shows the desktop: checklist says "switch to
-backup rig, relaunch".
+at 2:14." A confirmed quit marks the state clean, so the next launch opens the last show; a file given at launch
+wins and recovers only if it is the same show. If two recovered launches in a row crash before a GO, the next launch
+opens the show and mode without arming ("Recovery skipped after repeated crashes"). Only one instance may run. While
+the app is dead the projector shows the desktop: checklist says "switch to backup rig, relaunch".
 
 **Languages:** Hungarian default, English toggle in app, takes effect immediately. Own two-column string table
 (Apple localisation can't switch language in-app without relaunch). Logs English.
