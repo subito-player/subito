@@ -226,6 +226,8 @@ final class AppModel {
     // Pending confirmations outrank the no-projector banner because they last only 3 s.
     var banner: Banner? {
         if focusLost { return .focusLost }
+        // The concert quit's last step is a click, so nothing may hide its target.
+        if pending == .confirmQuitClick { return .confirm(.confirmQuitClick) }
         if filePickerOpen { return .filePicker }
         if typing { return .typing }
         if let outputPending { return .confirmOutput(outputPending) }
@@ -237,6 +239,8 @@ final class AppModel {
     // A confirmation goes stale with its window, so it reaches the status line only while the banner hides it.
     var statusNotice: Notice? {
         guard let notice, notice.isConfirmation else { return notice }
+        // "Click here" is only true on the banner itself.
+        guard notice != .confirmQuitClick else { return nil }
         return pending == notice && banner != .confirm(notice) ? notice : nil
     }
 

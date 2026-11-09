@@ -367,7 +367,6 @@ extension ShowState {
         var state = ShowState.loaded()
         state.send(.arm(index: 1))
         state.ready(.a, 1, duration: 100)
-        #expect(state.send(.parkArmed(by: -5)) == [.seekTo(.a, 0)])
         #expect(state.send(.parkArmed(by: 130)) == [.seekTo(.a, 99.5)])
         #expect(state.send(.parkArmedAt(40)) == [.seekTo(.a, 40)])
         #expect(state.send(.parkArmed(by: -5)) == [.seekTo(.a, 35)])
@@ -379,7 +378,22 @@ extension ShowState {
         var state = ShowState.loaded()
         state.send(.arm(index: 1))
         state.ready(.a, 1, duration: 0.3)
-        #expect(state.send(.parkArmedAt(5)) == [.seekTo(.a, 0)])
+        #expect(state.send(.parkArmedAt(5)) == [])
+        #expect(state.armedReady)
+    }
+
+    @Test func parkingWhereTheClipAlreadyIsKeepsItReady() {
+        var state = ShowState.loaded()
+        state.send(.arm(index: 1))
+        state.ready(.a, 1)
+        #expect(state.send(.parkArmed(by: -5)) == [])
+        #expect(state.send(.parkArmedAt(0)) == [])
+        #expect(state.armedReady)
+        state.send(.parkArmedAt(40))
+        state.ready(.a, 1)
+        #expect(state.send(.parkArmedAt(40)) == [])
+        #expect(state.armedReady)
+        #expect(state.send(.go).prefix(2) == [.show(.clip(.a)), .play(.a)])
     }
 }
 

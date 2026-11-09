@@ -30,7 +30,19 @@ private let monitor = DisplayInfo(id: 3)
         #expect(DisplayRoles(displays: all, main: 1, preferred: 3).output == 3)
         #expect(DisplayRoles(displays: all, main: 1, preferred: 1).output == 2)
         #expect(DisplayRoles(displays: all, main: 1, preferred: 9).output == 2)
-        #expect(DisplayRoles(displays: [projector, monitor], main: 3, preferred: 3).output == 2)
+    }
+
+    @Test func aSavedPickThatBecameMainKeepsTheOutputAndAnotherDisplayControls() {
+        // Lid closed, monitor and projector; macOS made the projector main, and it is the saved pick.
+        let roles = DisplayRoles(displays: [monitor, projector], main: 2, preferred: 2)
+        #expect((roles.control, roles.output) == (3, 2))
+        let mirroredMain = DisplayRoles(
+            displays: [DisplayInfo(id: 2), DisplayInfo(id: 4, mirrorOf: 2), monitor], main: 4, preferred: 2)
+        #expect((mirroredMain.control, mirroredMain.output) == (3, 2))
+        // With the lid open the panel controls, whatever is main.
+        #expect(DisplayRoles(displays: [laptop, projector], main: 2, preferred: 2).control == 1)
+        // Nothing else to control from: the pick cannot be the output.
+        #expect(DisplayRoles(displays: [projector], main: 2, preferred: 2).output == nil)
     }
 
     @Test func aMirrorOfTheControlScreenIsNeverAnOutput() {

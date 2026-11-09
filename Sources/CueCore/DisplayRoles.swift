@@ -24,11 +24,18 @@ public struct DisplayRoles: Equatable, Sendable {
     // Shows the control screen, so it is never an output.
     public var mirror: UInt32?
 
-    // Control: the built-in panel when online (lid open), else the main display. The output is never the
-    // control screen or its mirror; a picked display wins while it is present.
+    // Control: lid-open panel, else main unless main is the active saved pick; output never shows control.
     public init(displays: [DisplayInfo], main: UInt32, preferred: UInt32?) {
-        let control = displays.first(where: \.builtIn)?.id ?? main
-        let group = displays.first { $0.id == control }?.mirrorOf ?? control
+        let groupOf = { (id: UInt32) in displays.first { $0.id == id }?.mirrorOf ?? id }
+        let builtIn = displays.first(where: \.builtIn)?.id
+        var control = builtIn ?? main
+        if builtIn == nil, let preferred, displays.contains(where: { $0.id == preferred && $0.active }),
+            groupOf(preferred) == groupOf(main),
+            let other = displays.first(where: { $0.active && $0.mirrorOf != groupOf(main) })
+        {
+            control = other.id
+        }
+        let group = groupOf(control)
         let candidates = displays.filter { $0.active && $0.id != control && $0.mirrorOf != group }.map(\.id)
         self.control = control
         self.candidates = candidates

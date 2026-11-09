@@ -24,7 +24,8 @@ final class CursorGuard {
         guard let output = outputDisplay(), let cursor = CGEvent(source: nil)?.location else { return }
         let outputBounds = CGDisplayBounds(output)
         guard outputBounds.contains(cursor) else { return }
-        let control = CGDisplayBounds(DisplayWatcher.roles().control)
+        // The mirror set's primary has the bounds, even when the control screen is a hardware-mirrored member.
+        let control = CGDisplayBounds(CGDisplayPrimaryDisplay(DisplayWatcher.roles().control))
         guard let target = ScreenGeometry.nearestPoint(to: cursor, inAnyOf: [control]) else { return }
         CGWarpMouseCursorPosition(target)
         CGAssociateMouseAndMouseCursorPosition(1)

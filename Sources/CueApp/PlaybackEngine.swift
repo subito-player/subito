@@ -14,6 +14,7 @@ enum LoadFailure: Equatable {
 @MainActor
 final class PlaybackEngine: Player {
     static let displayReadyTimeout: TimeInterval = 3
+    static let parkSeekTimeout: TimeInterval = 1.5
     static let maxBreakMinutes: Double = 600
 
     var onEvent: (Command) -> Void = { _ in }
@@ -31,6 +32,8 @@ final class PlaybackEngine: Player {
     private var jobs: [Slot: LoadJob] = [:]
     // Bumped by every load and seek, so a superseded seek never reports the armed clip ready.
     private var seeks: [Slot: Int] = [:]
+    // The seek generation each slot last reported ready for, so a late landing never reports twice.
+    private var parked: [Slot: Int] = [:]
     private var observers: [NSObjectProtocol] = []
 
     init(defaultBreakTitle: String) {
@@ -122,18 +125,46 @@ final class PlaybackEngine: Player {
     // A park seek on the hidden armed clip reports ready again once it lands, so GO shows the parked frame.
     func seek(_ slot: Slot, to time: Double) {
         seeks[slot, default: 0] += 1
-        let seek = seeks[slot]
-        let job = jobs[slot]
+        guard let job = jobs[slot], job.isReady, base != .clip(slot), let generation = seeks[slot] else {
+            player(for: slot).seek(to: Self.cmTime(time), toleranceBefore: .zero, toleranceAfter: .zero)
+            return
+        }
+        park(slot, job, at: time, generation: generation, retry: true)
+    }
+
+    // A seek that never lands would block GO for good: retry once, then report ready with an amber warning.
+    private func park(_ slot: Slot, _ job: LoadJob, at time: Double, generation: Int, retry: Bool) {
         player(for: slot).seek(to: Self.cmTime(time), toleranceBefore: .zero, toleranceAfter: .zero) {
             [weak self] finished in
             Self.onMain {
-                guard finished, let self, let job, self.seeks[slot] == seek, self.jobs[slot] === job, job.isReady,
-                    self.base != .clip(slot)
-                else { return }
+                guard finished, let self, self.isPending(slot, job, generation) else { return }
                 Log.info("parked \(slot) \(job.url.lastPathComponent) at \(time)")
-                self.onEvent(.armedReady(slot, job.url, duration: Self.duration(of: job)))
+                self.parkLanded(slot, job, generation)
             }
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.parkSeekTimeout) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.isPending(slot, job, generation) else { return }
+                let name = job.url.lastPathComponent
+                if retry {
+                    Log.info("park \(slot) \(name) at \(time) not done after \(Self.parkSeekTimeout) s, seeking again")
+                    self.park(slot, job, at: time, generation: generation, retry: false)
+                } else {
+                    Log.info("park \(slot) \(name) at \(time) still not done, ready with the picture unconfirmed")
+                    self.parkLanded(slot, job, generation)
+                    self.report(slot, job.url, .pictureUnconfirmed, "park seek to \(time) not confirmed")
+                }
+            }
+        }
+    }
+
+    private func isPending(_ slot: Slot, _ job: LoadJob, _ generation: Int) -> Bool {
+        seeks[slot] == generation && parked[slot] != generation && jobs[slot] === job && base != .clip(slot)
+    }
+
+    private func parkLanded(_ slot: Slot, _ job: LoadJob, _ generation: Int) {
+        parked[slot] = generation
+        onEvent(.armedReady(slot, job.url, duration: Self.duration(of: job)))
     }
 
     func seek(_ slot: Slot, by delta: Double) {

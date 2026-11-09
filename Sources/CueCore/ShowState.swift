@@ -300,7 +300,10 @@ public struct ShowState: Equatable, Sendable {
     // Before the load only the target moves; after it, GO waits until the engine reports this seek landed.
     private mutating func park(at time: Double) -> [Effect] {
         guard let armed = armedClip else { return [] }
-        armedAt = clampArmed(time)
+        let target = clampArmed(time)
+        // Already there: a stray Opt+Left at 0 or a click on the scrubber never makes GO wait.
+        if armedReady, target == armedAt { return [] }
+        armedAt = target
         guard armedDuration != nil else { return [] }
         armedReady = false
         return [.seekTo(armed.slot, armedAt)]
