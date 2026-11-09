@@ -1,0 +1,91 @@
+include app.env
+
+VERSION := $(shell cat VERSION)
+SIGN_ID ?= -
+COVERAGE_MIN ?= 90
+ARCHS := --arch arm64 --arch x86_64
+APP_DIR := build/$(APP_NAME).app
+
+.DEFAULT_GOAL := app
+.PHONY: app run zip lint format test clean
+
+define INFO_PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>$(APP_NAME)</string>
+    <key>CFBundleDisplayName</key>
+    <string>$(APP_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(BUNDLE_ID)</string>
+    <key>CFBundleExecutable</key>
+    <string>$(APP_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$(VERSION)</string>
+    <key>CFBundleVersion</key>
+    <string>$(VERSION)</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.entertainment</string>
+</dict>
+</plist>
+endef
+export INFO_PLIST
+
+define COVERAGE_CHECK
+import json, sys
+minimum = float(sys.argv[1])
+with open(sys.argv[2]) as f:
+    data = json.load(f)
+total = covered = 0
+for file in data["data"][0]["files"]:
+    if "/Sources/CueCore/" in file["filename"]:
+        lines = file["summary"]["lines"]
+        total += lines["count"]
+        covered += lines["covered"]
+if total == 0:
+    sys.exit("coverage: no CueCore lines in the report")
+pct = 100.0 * covered / total
+if pct < minimum:
+    sys.exit("coverage: CueCore line coverage %.1f%% is below the %g%% gate" % (pct, minimum))
+print("CueCore line coverage: %.1f%% (gate %g%%)" % (pct, minimum))
+endef
+export COVERAGE_CHECK
+
+app:
+	swift build -c release $(ARCHS) --product CueApp
+	rm -rf "$(APP_DIR)"
+	mkdir -p "$(APP_DIR)/Contents/MacOS" "$(APP_DIR)/Contents/Resources"
+	cp "$$(swift build -c release $(ARCHS) --product CueApp --show-bin-path)/CueApp" "$(APP_DIR)/Contents/MacOS/$(APP_NAME)"
+	printf '%s\n' "$$INFO_PLIST" > "$(APP_DIR)/Contents/Info.plist"
+	plutil -lint "$(APP_DIR)/Contents/Info.plist"
+	codesign --force --options runtime --sign "$(SIGN_ID)" "$(APP_DIR)"
+	codesign --verify --strict "$(APP_DIR)"
+
+run: app
+	exec "$(APP_DIR)/Contents/MacOS/$(APP_NAME)"
+
+zip: app
+	ditto -c -k --keepParent "$(APP_DIR)" "build/$(APP_NAME)-$(VERSION).zip"
+
+lint:
+	swift format lint --strict --recursive Sources Tests Package.swift
+
+format:
+	swift format --in-place --recursive Sources Tests Package.swift
+
+test:
+	swift test --enable-code-coverage
+	python3 -c "$$COVERAGE_CHECK" "$(COVERAGE_MIN)" "$$(swift test --show-codecov-path)"
+
+clean:
+	rm -rf .build build
