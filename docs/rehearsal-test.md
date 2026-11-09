@@ -11,7 +11,8 @@ time. Note every surprise in the log at the bottom; it drives v0.2.
    1. GO through every cue. Expect no black frame and no flash between clips (frame counter jumps straight to the
       next clip). `grep switch ~/Library/Logs/Attacca/*.log` shows key-to-switch times.
    2. B, B, L, Shift+L, L during a clip: instant cuts, clip keeps running underneath.
-   3. Space, arrows, Home, Opt+Right on the next clip, then GO: starts from the parked point.
+   3. Space, arrows, Home, Opt+Right on the next clip, then GO: starts from the parked point. Park and GO within a
+      frame or two: the frame counter must start at the parked frame, never show the previous one.
    4. Let a clip end: last frame holds. GO to the break: countdown, title holds at 0:00.
    5. Move the cursor towards the projector: it stops at the laptop edge.
    6. Unplug HDMI during a clip: nothing on the laptop panel, red NO PROJECTOR. Replug: picture returns in the same

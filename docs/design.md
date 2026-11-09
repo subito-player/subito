@@ -136,13 +136,14 @@ in the cue list. System checks re-run on display, sound device and power changes
 **Projector unplugged:** hide output window at the start of any display reconfiguration (macOS reports it for every
 display, so we can't tell which one is going away), never let macOS move it to the laptop. Cost: a brief desktop
 flash on the projector during any reconfiguration, hence the black wallpaper. Red status on control. Playback
-continues. Control screen: the built-in panel, or the main display when there is none (lid closed, Mac mini). Output
-display: the one picked on the control screen (vendor, model, serial) when present, else the first other display;
-never the control screen; one display only means no output. Attaching never changes the saved pick. Re-show output in
-the current state when it returns.
+continues. Control screen: the built-in panel, or the main display when there is none (lid closed, Mac mini), unless
+that main display is the picked output, then the first other display. Output display: the one picked on the control
+screen (vendor, model, serial) when present, else the first other display; never the control screen; one display
+only means no output. Attaching never changes the saved pick. Re-show output in the current state when it returns.
 
 **Parked GO:** a clip armed at a position (parked, or recovered) is ready for GO only after the seek to that position
-has finished, so GO can never flash frame 0.
+has finished, so GO can never flash frame 0. A seek that never finishes is retried once, then the clip is reported
+ready with an amber warning, so GO is never refused forever.
 
 **Quitting:** only through the confirmed press-twice quit. Dock Quit asks like Cmd+Q; logout and restart for updates
 are refused while the app runs.
