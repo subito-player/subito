@@ -7,7 +7,7 @@ ARCHS := --arch arm64 --arch x86_64
 APP_DIR := build/$(APP_NAME).app
 
 .DEFAULT_GOAL := app
-.PHONY: app run zip lint format test clean
+.PHONY: app run zip lint format test clean samples
 
 define INFO_PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -89,3 +89,7 @@ test:
 
 clean:
 	rm -rf .build build
+
+# Test clips, logos, movie and concert in build/samples (needs ffmpeg or nix).
+samples:
+	scripts/make-samples.sh build/samples
