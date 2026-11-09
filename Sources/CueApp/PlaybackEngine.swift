@@ -1,0 +1,299 @@
+import AVFoundation
+import AppKit
+import CueCore
+import QuartzCore
+
+@MainActor
+final class PlaybackEngine: Player {
+    static let displayReadyTimeout: TimeInterval = 3
+    static let maxBreakMinutes: Double = 600
+
+    var onEvent: (Command) -> Void = { _ in }
+    var onLoadError: (Slot, URL, String) -> Void = { _, _, _ in }
+    let window: OutputWindow
+
+    private let playerA = AVPlayer()
+    private let playerB = AVPlayer()
+    private let logos: [CGImage?]
+    private let defaultBreakTitle: String
+    private var base: Base = .black
+    private var breakTimer: Timer?
+    private var jobs: [Slot: LoadJob] = [:]
+    private var observers: [NSObjectProtocol] = []
+
+    init(logos: [URL], defaultBreakTitle: String) {
+        self.defaultBreakTitle = defaultBreakTitle
+        self.logos = logos.enumerated().map { index, url in
+            let image = NSImage(contentsOf: url)?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            if image == nil { Log.info("logo \(index + 1) cannot be loaded: \(url.path)") }
+            return image
+        }
+        for player in [playerA, playerB] {
+            player.automaticallyWaitsToMinimizeStalling = false
+            player.actionAtItemEnd = .pause
+            player.isMuted = true
+        }
+        window = OutputWindow(playerA: playerA, playerB: playerB)
+        let center = NotificationCenter.default
+        observers.append(
+            center.addObserver(forName: AVPlayerItem.didPlayToEndTimeNotification, object: nil, queue: .main) {
+                [weak self] note in
+                let item = note.object as? AVPlayerItem
+                MainActor.assumeIsolated { self?.itemEnded(item) }
+            })
+        observers.append(
+            center.addObserver(forName: AVPlayerItem.failedToPlayToEndTimeNotification, object: nil, queue: .main) {
+                [weak self] note in
+                let item = note.object as? AVPlayerItem
+                let error = note.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error
+                let message = error?.localizedDescription ?? "unknown error"
+                MainActor.assumeIsolated { self?.itemFailed(item, message: message) }
+            })
+    }
+
+    func player(for slot: Slot) -> AVPlayer {
+        slot == .a ? playerA : playerB
+    }
+
+    // Loads run after the commit so the old live player never swaps items before its layer is hidden.
+    func apply(_ effects: [Effect], for label: String, receivedAt start: TimeInterval) {
+        let loads = effects.filter(\.isLoad)
+        withoutAnimation { perform(effects.filter { !$0.isLoad }) }
+        let ms = (ProcessInfo.processInfo.systemUptime - start) * 1000
+        if !loads.isEmpty {
+            CATransaction.flush()
+            perform(loads)
+        }
+        let switches = effects.filter(\.isSwitch)
+        guard !switches.isEmpty else { return }
+        Log.deferred(String(format: "switch %@ -> %@ in %.1f ms", label, "\(switches)", ms))
+    }
+
+    func load(_ slot: Slot, url: URL, at time: Double) {
+        let player = player(for: slot)
+        let job = LoadJob(url: url, time: time, item: AVPlayerItem(asset: AVURLAsset(url: url)))
+        jobs[slot] = job
+        player.pause()
+        player.replaceCurrentItem(with: job.item)
+        Log.info("load \(slot) \(url.lastPathComponent) at \(time)")
+        // Stays on for the item's lifetime so a failure during playback still reaches the control screen.
+        job.statusObservation = job.item.observe(\.status, options: [.initial, .new]) { [weak self, weak job] _, _ in
+            Self.onMain {
+                guard let job else { return }
+                self?.statusChanged(slot, job)
+            }
+        }
+    }
+
+    func seek(_ slot: Slot, to time: Double) {
+        player(for: slot).seek(to: Self.cmTime(time), toleranceBefore: .zero, toleranceAfter: .zero)
+    }
+
+    func seek(_ slot: Slot, by delta: Double) {
+        let player = player(for: slot)
+        guard let item = player.currentItem else { return }
+        var target = max(0, player.currentTime().seconds + delta)
+        if item.duration.seconds.isFinite { target = min(target, item.duration.seconds) }
+        player.seek(to: Self.cmTime(target))
+    }
+
+    func play(_ slot: Slot) {
+        player(for: slot).play()
+    }
+
+    func pause(_ slot: Slot) {
+        player(for: slot).pause()
+    }
+
+    func show(_ base: Base) {
+        self.base = base
+        breakTimer?.invalidate()
+        breakTimer = nil
+        switch base {
+        case .black:
+            window.showBase(clip: nil, logo: nil, breakScreen: false)
+        case .logo(let number):
+            window.showBase(clip: nil, logo: logo(number), breakScreen: false)
+        case .clip(let slot):
+            window.showBase(clip: slot, logo: nil, breakScreen: false)
+        case .breakScreen(let item, _):
+            updateBreak()
+            window.showBase(clip: nil, logo: nil, breakScreen: true)
+            if item.countdown { startBreakTimer() }
+        }
+    }
+
+    func setCover(_ cover: Cover?) {
+        switch cover {
+        case nil:
+            window.showCover(logo: nil, black: false)
+        case .black:
+            window.showCover(logo: nil, black: true)
+        case .logo(let number):
+            let image = logo(number)
+            window.showCover(logo: image, black: image == nil)
+        }
+    }
+
+    func setMuted(_ muted: Bool) {
+        playerA.isMuted = muted
+        playerB.isMuted = muted
+    }
+
+    private func isLoading(_ slot: Slot, _ job: LoadJob) -> Bool {
+        jobs[slot] === job && !job.isReady && !job.failed
+    }
+
+    private func statusChanged(_ slot: Slot, _ job: LoadJob) {
+        guard jobs[slot] === job, !job.failed else { return }
+        switch job.item.status {
+        case .readyToPlay:
+            // Queued KVO blocks read the live status, so two of them can both see ready.
+            guard !job.seeking else { return }
+            job.seeking = true
+            player(for: slot).seek(to: Self.cmTime(job.time), toleranceBefore: .zero, toleranceAfter: .zero) {
+                [weak self] _ in
+                Self.onMain { self?.preroll(slot, job) }
+            }
+        case .failed:
+            job.failed = true
+            job.displayObservation = nil
+            report(slot, job.url, job.item.error?.localizedDescription ?? "unknown error")
+        default:
+            break
+        }
+    }
+
+    private func preroll(_ slot: Slot, _ job: LoadJob) {
+        guard isLoading(slot, job) else { return }
+        let player = player(for: slot)
+        // preroll raises unless the player itself is ready and paused.
+        guard player.status == .readyToPlay, player.rate == 0 else {
+            awaitDisplay(slot, job)
+            return
+        }
+        player.preroll(atRate: 1) { [weak self] _ in
+            Self.onMain { self?.awaitDisplay(slot, job) }
+        }
+    }
+
+    private func awaitDisplay(_ slot: Slot, _ job: LoadJob) {
+        guard isLoading(slot, job) else { return }
+        job.displayObservation = window.playerLayer(slot).observe(\.isReadyForDisplay, options: [.initial, .new]) {
+            [weak self, weak job] layer, _ in
+            Self.onMain {
+                guard let job, layer.isReadyForDisplay else { return }
+                self?.ready(slot, job, pictureConfirmed: true)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.displayReadyTimeout) { [weak self, weak job] in
+            MainActor.assumeIsolated {
+                guard let self, let job, self.isLoading(slot, job) else { return }
+                self.ready(slot, job, pictureConfirmed: false)
+                // Never block GO forever, but warn when a projector is attached and the frame is unconfirmed.
+                if self.window.isVisible { self.report(slot, job.url, "picture not confirmed") }
+            }
+        }
+    }
+
+    private func ready(_ slot: Slot, _ job: LoadJob, pictureConfirmed: Bool) {
+        guard isLoading(slot, job) else { return }
+        job.isReady = true
+        job.displayObservation = nil
+        let seconds = job.item.duration.seconds
+        let duration = seconds.isFinite ? seconds : .infinity
+        let picture =
+            pictureConfirmed
+            ? "hidden layer ready for display"
+            : "hidden layer NOT ready for display after \(Self.displayReadyTimeout) s (output visible: \(window.isVisible))"
+        Log.info("ready \(slot) \(job.url.lastPathComponent) duration \(duration), \(picture)")
+        onEvent(.armedReady(slot, job.url, duration: duration))
+    }
+
+    private func report(_ slot: Slot, _ url: URL, _ message: String) {
+        Log.info("error \(slot) \(url.lastPathComponent): \(message)")
+        onLoadError(slot, url, message)
+    }
+
+    private func slot(of item: AVPlayerItem?) -> Slot? {
+        guard let item else { return nil }
+        return [Slot.a, .b].first { jobs[$0]?.item === item }
+    }
+
+    private func itemEnded(_ item: AVPlayerItem?) {
+        guard let slot = slot(of: item) else { return }
+        Log.info("ended \(slot)")
+        onEvent(.liveEnded(slot))
+    }
+
+    private func itemFailed(_ item: AVPlayerItem?, message: String) {
+        guard let slot = slot(of: item), let job = jobs[slot] else { return }
+        report(slot, job.url, "playback failed: \(message)")
+    }
+
+    private func logo(_ number: Int) -> CGImage? {
+        logos.indices.contains(number - 1) ? logos[number - 1] : nil
+    }
+
+    private func startBreakTimer() {
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.updateBreak() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        breakTimer = timer
+    }
+
+    private func updateBreak() {
+        guard case .breakScreen(let item, let startedAt) = base else { return }
+        let minutes = item.minutes.isFinite ? min(max(item.minutes, 0), Self.maxBreakMinutes) : 0
+        let left = startedAt.addingTimeInterval(minutes * 60).timeIntervalSinceNow.rounded(.up)
+        // Clamped before Int() so an odd clock or file can never trap.
+        let seconds = left.isFinite ? Int(min(max(left, 0), Self.maxBreakMinutes * 60)) : 0
+        let countdown =
+            item.countdown && seconds > 0 ? String(format: "%02ld:%02ld", seconds / 60, seconds % 60) : nil
+        window.setBreak(title: item.text ?? defaultBreakTitle, countdown: countdown)
+        if countdown == nil {
+            breakTimer?.invalidate()
+            breakTimer = nil
+        }
+    }
+
+    private static func cmTime(_ seconds: Double) -> CMTime {
+        CMTime(seconds: seconds, preferredTimescale: 600)
+    }
+
+    private nonisolated static func onMain(_ body: @escaping @MainActor () -> Void) {
+        DispatchQueue.main.async { MainActor.assumeIsolated(body) }
+    }
+}
+
+@MainActor
+private final class LoadJob {
+    let url: URL
+    let time: Double
+    let item: AVPlayerItem
+    var statusObservation: NSKeyValueObservation?
+    var displayObservation: NSKeyValueObservation?
+    var seeking = false
+    var isReady = false
+    var failed = false
+
+    init(url: URL, time: Double, item: AVPlayerItem) {
+        self.url = url
+        self.time = time
+        self.item = item
+    }
+}
+
+extension Effect {
+    fileprivate var isLoad: Bool {
+        if case .load = self { true } else { false }
+    }
+
+    fileprivate var isSwitch: Bool {
+        switch self {
+        case .show, .setCover: true
+        default: false
+        }
+    }
+}
