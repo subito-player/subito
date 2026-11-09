@@ -116,8 +116,13 @@ smaller "to clip end"; button row with every key action and its key; status line
 names). Window fills the laptop screen so there is nothing else to click. If the app loses focus: big red "keys not
 reaching the app, click here" banner.
 
-**Advanced view (Cmd+Opt+D, for the owner):** log tail, key-to-switch timings, file details (codec, size, fps,
-duration, audio), projector modes, memory use, stress runner (random GO/BLACK/LOGO, logs timings).
+**Advanced view (Cmd+Opt+D, for the owner):** log tail, key-to-switch timings, projector modes, memory use (now and
+at launch), stress runner (random GO/BLACK/LOGO/arm, rehearsal only, any key stops it), cheat sheet, key map and log
+folder buttons. Per-clip file details are in the preflight panel and the log.
+
+**Key map file:** `~/Library/Application Support/<bundle id>/keymap.json`, written with the defaults on first launch,
+read at launch. A broken file falls back to the default keys with a red status line naming the problem. Button labels
+and the cheat sheet follow the active map. Cheat sheet: one printable A4 page in the current UI language.
 
 **Preflight** (launch and on load, results on control only): files exist; playable by AVFoundation (red if not, plain
 message); size, fps, codec, duration vs `planned_end_s + tail_s` (yellow if off by > 1 s plus one frame or not
