@@ -179,7 +179,7 @@ public enum ShowLoader {
         try data.write(to: url, options: .atomic)
     }
 
-    private static func describe(_ error: Error) -> String {
+    static func describe(_ error: Error) -> String {
         let context: DecodingError.Context
         let summary: String
         switch error as? DecodingError {
