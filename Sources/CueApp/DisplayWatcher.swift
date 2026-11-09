@@ -2,8 +2,14 @@ import AppKit
 import CoreGraphics
 
 enum OutputStatus: Equatable {
-    case attached(name: String, hz: Double, mirrored: Bool)
+    case attached(name: String?, hz: Double, mirrored: Bool)
     case missing
+}
+
+struct DisplayChoice: Identifiable, Equatable {
+    let id: CGDirectDisplayID
+    let name: String?
+    let saved: Bool
 }
 
 @MainActor
@@ -32,6 +38,15 @@ final class DisplayWatcher {
 
     deinit {
         CGDisplayRemoveReconfigurationCallback(displayReconfigured, Unmanaged.passUnretained(self).toOpaque())
+    }
+
+    static var hasSavedChoice: Bool {
+        savedIdentity != nil
+    }
+
+    static func choices() -> [DisplayChoice] {
+        let saved = savedIdentity
+        return externalDisplays().map { DisplayChoice(id: $0, name: name(of: $0), saved: identity(of: $0) == saved) }
     }
 
     // Called by the control screen's display picker; nil goes back to the first external display.
@@ -78,9 +93,8 @@ final class DisplayWatcher {
         outputDisplay = display
         window.setFrame(Self.appKitFrame(of: display), display: true)
         window.orderFrontRegardless()
-        let name = NSScreen.screens.first { $0.displayID == display }?.localizedName ?? "display \(display)"
         let hz = CGDisplayCopyDisplayMode(display)?.refreshRate ?? 0
-        report(.attached(name: name, hz: hz, mirrored: CGDisplayIsInMirrorSet(display) != 0))
+        report(.attached(name: Self.name(of: display), hz: hz, mirrored: CGDisplayIsInMirrorSet(display) != 0))
     }
 
     private func report(_ new: OutputStatus) {
@@ -97,15 +111,27 @@ final class DisplayWatcher {
     }
 
     private func pickOutput() -> CGDirectDisplayID? {
-        let displays = Self.activeDisplays()
+        let externals = Self.externalDisplays()
+        let saved = Self.savedIdentity
+        return externals.first { Self.identity(of: $0) == saved } ?? externals.first
+    }
+
+    private static var savedIdentity: [Int]? {
+        UserDefaults.standard.array(forKey: savedKey) as? [Int]
+    }
+
+    private static func externalDisplays() -> [CGDirectDisplayID] {
+        let displays = activeDisplays()
         let builtIn = displays.first { CGDisplayIsBuiltin($0) != 0 }
-        let externals = displays.filter { display in
+        return displays.filter { display in
             guard CGDisplayIsBuiltin(display) == 0 else { return false }
             guard let builtIn else { return true }
             return CGDisplayPrimaryDisplay(display) != CGDisplayPrimaryDisplay(builtIn)
         }
-        let saved = UserDefaults.standard.array(forKey: Self.savedKey) as? [Int]
-        return externals.first { Self.identity(of: $0) == saved } ?? externals.first
+    }
+
+    private static func name(of display: CGDirectDisplayID) -> String? {
+        NSScreen.screens.first { $0.displayID == display }?.localizedName
     }
 
     private static func identity(of display: CGDirectDisplayID) -> [Int] {

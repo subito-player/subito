@@ -81,6 +81,18 @@ extension ShowState {
         #expect(live.send(.arm(index: 5)) == [.load(.b, url(show[5]), at: 0)])
     }
 
+    @Test func armedSlotIsTheSlotTheArmedClipLoadsInto() {
+        var state = ShowState.loaded()
+        #expect(state.armedSlot == nil)
+        #expect(state.send(.arm(index: 1)) == [.load(.a, url(show[1]), at: 0)])
+        #expect(state.armedSlot == .a)
+        state.ready(.a, 1)
+        #expect(state.send(.go).last == .load(.b, url(show[2]), at: 0))
+        #expect(state.armedSlot == .b)
+        state.send(.arm(index: 3))
+        #expect(state.armedSlot == nil)
+    }
+
     @Test(arguments: [0, 3, 4, 7])
     func blackBreakAndLogoAreReadyImmediately(index: Int) {
         var state = ShowState.loaded()

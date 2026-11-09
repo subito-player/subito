@@ -89,6 +89,11 @@ public struct ShowState: Equatable, Sendable {
         return pending
     }
 
+    // The slot the armed clip loads into, so a preview can show that player; nil unless a clip is armed.
+    public var armedSlot: Slot? {
+        armedClip?.slot
+    }
+
     public mutating func replaceCues(_ cues: [Cue]) -> [Effect] {
         self.cues = cues
         liveIndex = nil

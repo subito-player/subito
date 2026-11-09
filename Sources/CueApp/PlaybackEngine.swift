@@ -9,13 +9,16 @@ final class PlaybackEngine: Player {
     static let maxBreakMinutes: Double = 600
 
     var onEvent: (Command) -> Void = { _ in }
-    var onLoadError: (Slot, URL, String) -> Void = { _, _, _ in }
+    // Last parameter: warning only, the clip still plays.
+    var onLoadError: (Slot, URL, String, Bool) -> Void = { _, _, _, _ in }
     let window: OutputWindow
+    // Read at GO, so a language switch never changes the projector until the next break.
+    var defaultBreakTitle: String
+    private(set) var breakTitle = ""
 
     private let playerA = AVPlayer()
     private let playerB = AVPlayer()
     private let logos: [CGImage?]
-    private let defaultBreakTitle: String
     private var base: Base = .black
     private var breakTimer: Timer?
     private var jobs: [Slot: LoadJob] = [:]
@@ -53,6 +56,17 @@ final class PlaybackEngine: Player {
 
     func player(for slot: Slot) -> AVPlayer {
         slot == .a ? playerA : playerB
+    }
+
+    func time(_ slot: Slot) -> (position: Double, duration: Double)? {
+        let player = player(for: slot)
+        guard let duration = player.currentItem?.duration.seconds, duration.isFinite else { return nil }
+        let position = player.currentTime().seconds
+        return (position.isFinite ? min(max(position, 0), duration) : 0, duration)
+    }
+
+    func logo(_ number: Int) -> CGImage? {
+        logos.indices.contains(number - 1) ? logos[number - 1] : nil
     }
 
     // Loads run after the commit so the old live player never swaps items before its layer is hidden.
@@ -117,6 +131,7 @@ final class PlaybackEngine: Player {
         case .clip(let slot):
             window.showBase(clip: slot, logo: nil, breakScreen: false)
         case .breakScreen(let item, _):
+            breakTitle = item.text ?? defaultBreakTitle
             updateBreak()
             window.showBase(clip: nil, logo: nil, breakScreen: true)
             if item.countdown { startBreakTimer() }
@@ -191,7 +206,7 @@ final class PlaybackEngine: Player {
                 guard let self, let job, self.isLoading(slot, job) else { return }
                 self.ready(slot, job, pictureConfirmed: false)
                 // Never block GO forever, but warn when a projector is attached and the frame is unconfirmed.
-                if self.window.isVisible { self.report(slot, job.url, "picture not confirmed") }
+                if self.window.isVisible { self.report(slot, job.url, "picture not confirmed", warning: true) }
             }
         }
     }
@@ -210,9 +225,9 @@ final class PlaybackEngine: Player {
         onEvent(.armedReady(slot, job.url, duration: duration))
     }
 
-    private func report(_ slot: Slot, _ url: URL, _ message: String) {
+    private func report(_ slot: Slot, _ url: URL, _ message: String, warning: Bool = false) {
         Log.info("error \(slot) \(url.lastPathComponent): \(message)")
-        onLoadError(slot, url, message)
+        onLoadError(slot, url, message, warning)
     }
 
     private func slot(of item: AVPlayerItem?) -> Slot? {
@@ -231,10 +246,6 @@ final class PlaybackEngine: Player {
         report(slot, job.url, "playback failed: \(message)")
     }
 
-    private func logo(_ number: Int) -> CGImage? {
-        logos.indices.contains(number - 1) ? logos[number - 1] : nil
-    }
-
     private func startBreakTimer() {
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.updateBreak() }
@@ -245,17 +256,21 @@ final class PlaybackEngine: Player {
 
     private func updateBreak() {
         guard case .breakScreen(let item, let startedAt) = base else { return }
-        let minutes = item.minutes.isFinite ? min(max(item.minutes, 0), Self.maxBreakMinutes) : 0
-        let left = startedAt.addingTimeInterval(minutes * 60).timeIntervalSinceNow.rounded(.up)
-        // Clamped before Int() so an odd clock or file can never trap.
-        let seconds = left.isFinite ? Int(min(max(left, 0), Self.maxBreakMinutes * 60)) : 0
-        let countdown =
-            item.countdown && seconds > 0 ? String(format: "%02ld:%02ld", seconds / 60, seconds % 60) : nil
-        window.setBreak(title: item.text ?? defaultBreakTitle, countdown: countdown)
+        let countdown = Self.breakCountdown(item, startedAt: startedAt, now: Date())
+        window.setBreak(title: breakTitle, countdown: countdown)
         if countdown == nil {
             breakTimer?.invalidate()
             breakTimer = nil
         }
+    }
+
+    static func breakCountdown(_ item: BreakItem, startedAt: Date, now: Date) -> String? {
+        guard item.countdown else { return nil }
+        let minutes = item.minutes.isFinite ? min(max(item.minutes, 0), maxBreakMinutes) : 0
+        let left = startedAt.addingTimeInterval(minutes * 60).timeIntervalSince(now).rounded(.up)
+        // Clamped before Int() so an odd clock or file can never trap.
+        let seconds = left.isFinite ? Int(min(max(left, 0), maxBreakMinutes * 60)) : 0
+        return seconds > 0 ? String(format: "%02ld:%02ld", seconds / 60, seconds % 60) : nil
     }
 
     private static func cmTime(_ seconds: Double) -> CMTime {

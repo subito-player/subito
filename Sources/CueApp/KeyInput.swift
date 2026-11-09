@@ -35,4 +35,9 @@ enum KeyInput {
         let prefix = order.filter { chord.modifiers.contains($0.0) }.map { $0.1 + "+" }.joined()
         return prefix + chord.key
     }
+
+    static func label(of chord: KeyChord) -> String {
+        let arrows = ["Left": "←", "Right": "→", "Up": "↑", "Down": "↓"]
+        return name(of: KeyChord(key: arrows[chord.key] ?? chord.key, modifiers: chord.modifiers))
+    }
 }
