@@ -8,11 +8,14 @@ Built entirely by Claude agents. Rules adapted from the temporal hub. Spec: `des
    state merge order in the PR.
 2. Every behaviour change ships with tests and the matching docs update in the same commit. No CHANGELOG; the PR
    describes the change.
-3. Before every commit: `make lint test`. `make test` enforces a 90% line-coverage gate on `CueCore`. App behaviour
-   that needs a screen is checked by hand with `docs/rehearsal-test.md`.
-4. Build and test locally (`make run`). CI is Bitrise only (root `bitrise.yml`, no GitHub Actions) and runs only on
-   `v*` tags.
-5. Release: bump `VERSION`, merge, tag `vX.Y.Z` on that commit. Release notes come from git history and merged PRs.
+3. Before every commit: `make lint test`. App behaviour that needs a screen is checked by hand with
+   `docs/rehearsal-test.md`.
+4. No test exists just to exist: every test pins a behaviour from `design.md` or a real bug. `make test` has a 90%
+   line-coverage gate on `CueCore` as a smoke alarm, not a target; never write a filler test to pass it. If the only way
+   to reach 90% is a meaningless test, lower the gate and say why in the PR.
+5. Build and test locally (`make run`). CI is Bitrise only (root `bitrise.yml`, no GitHub Actions) and runs only on
+   `v*` tags. `bitrise.yml` is also edited by the Workflow Editor, which strips comments: keep it comment-free.
+6. Release: bump `VERSION`, merge, tag `vX.Y.Z` on that commit. Release notes come from git history and merged PRs.
 
 ## Commits and PRs
 
@@ -35,7 +38,9 @@ Built entirely by Claude agents. Rules adapted from the temporal hub. Spec: `des
 
 ## Code
 
-- KISS, standard library first, no dependencies.
+- KISS: simplest thing that works. No abstraction until its second real use.
+- Don't reinvent the wheel: standard library, then Apple frameworks, then (only if ~10 lines can't do it) one
+  well-known library. Today: no dependencies.
 - Comments only for a non-obvious why: one line, present-tense rationale, never history or fix narration.
 - App name, command and bundle ID only in `app.env`; version only in `VERSION`.
 - Formatting and lint: `swift format` from the toolchain.
