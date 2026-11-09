@@ -1,0 +1,26 @@
+# Builds run locally (make). CI only packages releases: tag vX.Y.Z -> lint, test, ad-hoc signed .app zip as artifact.
+format_version: "23"
+default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
+project_type: macos
+meta:
+  bitrise.io:
+    stack: osx-xcode-27.2.x
+
+workflows:
+  release:
+    triggers:
+      tag:
+        - name: v*
+      # Uncomment to also build every merge to main.
+      # push:
+      #   - branch: main
+    steps:
+      - git-clone@8: {}
+      - script@1:
+          title: make lint test zip
+          inputs:
+            - content: |-
+                set -euo pipefail
+                make lint test zip
+                cp build/*.zip "$BITRISE_DEPLOY_DIR/"
+      - deploy-to-bitrise-io@2: {}
