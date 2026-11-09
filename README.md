@@ -25,4 +25,5 @@ A downloaded (quarantined) build opens via System Settings > Privacy & Security 
 - [Plan](docs/plan.md): v0.1 build order.
 - [Development](docs/development.md): rules for working on this repo.
 - [Control window prototype](design/control-window.html): clickable mock of the operator screen with example data.
-  Published (private) at https://claude.ai/artifact/ADwb3zZzJ4PxD96FJFYx2e.
+  Works offline: open `design/control-window.html` in any browser (`open design/control-window.html`), no internet
+  or Claude needed. First online version: https://claude.ai/artifact/ADwb3zZzJ4PxD96FJFYx2e (private).
