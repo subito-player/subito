@@ -21,7 +21,7 @@ Estimate: A ~1 h, B ~3 h more, C ~3 h more, D ~2 h more (wall clock, me working)
 
 ## v0.2 (started 2026-11-09 night, owner asleep; one branch + PR per item, review per item)
 
-1. **`--check <show>`**: headless preflight from the command line. JSON report on stdout, exit 0 ok / 1 warnings / 2 blocked; never writes files, no windows. `make check SHOW=...`.
+1. **`--check <show>`**: headless preflight from the command line. JSON report on stdout, exit 0 ok / 1 warnings / 2 blocked / 3 show unreadable / 64 usage; never writes files, no windows. `make check SHOW=...`.
 2. **Logo fade**: L / Shift+L cover fades in and out over 0.5 s; BLACK and GO stay instant cuts.
 3. **Converter**: preflight panel "Konvertálás" on blocked clips; ffmpeg (Homebrew, Nix, or `nix shell`) remux first, hardware H.264 transcode if needed; new file next to the original, show updated; rehearsal only, never while a clip is live.
 4. **Looping logos**: `{ "loop": "file.mp4" }` logos play as a muted seamless loop; concert inspector picks logo 1 and 2 files (image or video).
