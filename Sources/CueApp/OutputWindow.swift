@@ -158,7 +158,8 @@ final class OutputWindow: NSWindow {
     // Model values are always the final state; a fade only animates the cover logo's opacity towards them.
     func showCover(logo: CGImage?, black: Bool, fade: TimeInterval) {
         withoutAnimation {
-            let from: Float = fade > 0 && !coverLogo.isHidden ? coverLogo.presentation()?.opacity ?? coverLogo.opacity : 0
+            let visible = fade > 0 && !coverLogo.isHidden
+            let from: Float = visible ? coverLogo.presentation()?.opacity ?? coverLogo.opacity : 0
             coverLogo.removeAnimation(forKey: Self.fadeKey)
             coverBlack.isHidden = !black
             guard fade > 0 else {
