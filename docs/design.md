@@ -1,0 +1,187 @@
+# Attacca v0.1 design
+
+Silent video player for live orchestras. Draft 2026-11-09. Target: rehearsal Fri 2026-11-13 (or that weekend).
+
+## Why
+
+Orchestra plays live, film projected behind it. Today: 2 laptops, HDMI switch, prebaked screens (logos, black).
+VLC + remote was tried: it dropped out of fullscreen when switching between files from different sources, and the
+conductor lost trust. Attacca runs on one Mac (laptop screen = control, projector = output), is keyboard driven,
+boring and predictable.
+
+**Anti-goals** (failure even if it technically works): anything on the projector except video, black, logo or break
+screen (no cursor, UI, dialog, desktop, error text, OSD); output leaving its display or its fullscreen state; a modal
+dialog swallowing Enter or Space mid-show; the operator needing to know it is a Mac.
+
+**Non-goals:** video editing, audio mixing, lighting, network sync, effects, two machines, Windows (later, separate decision).
+
+## People and setup
+
+- Operator: non-technical, Hungarian speaker. Owner sits beside them at first rehearsals, not at concerts.
+- Show Mac: this one (Apple Silicon, macOS 27.2). Min target macOS 14 so a backup Mac can run it.
+- Projector: HDMI, refresh modes unknown. Old 2-laptop rig stays on the same HDMI switch as backup.
+- Clips: own exports (1920x1080 H.264 23.976, planned part + 60 s tail + 1 s fade, watermark, rehearsal audio), and
+  later clips from other creators in any size, fps or codec. First rehearsal: own export only.
+
+## Content model
+
+Two file types, plain JSON, paths relative to the file. Operator builds both in the app; a spreadsheet script may
+also generate movie files.
+
+```json
+// showman.movie.json
+{ "format": 1, "title": "The Greatest Showman", "colour": "#7a4aff",
+  "items": [
+    { "type": "clip", "number": 0, "file": "clips/00_title.mp4", "title": "Title",
+      "planned_end_s": 45, "tail_s": 0, "colour": "#444", "brief": "Pause on title, wait for conductor" },
+    { "type": "clip", "number": 1, "file": "clips/01_the_greatest_show.mp4", "title": "The Greatest Show",
+      "planned_end_s": 212.5, "tail_s": 60 },
+    { "type": "black" } ] }
+
+// gala-2026.concert.json
+{ "format": 1, "title": "Spring Gala 2026", "logos": ["logos/orchestra.png", "logos/event.png"],
+  "items": [
+    { "type": "black" },
+    { "type": "movie", "file": "showman.movie.json" },
+    { "type": "break", "minutes": 20, "countdown": true, "text": "Szünet" },
+    { "type": "logo", "logo": 1 } ] }
+```
+
+- Clip fields except `type` and `file` are optional. `number` defaults to the `NN_` filename prefix, `title` to the
+  rest of the filename ("the_greatest_show" -> "The Greatest Show"). No `planned_end_s` = no markers.
+- Concert refers to movies by file, so fixing a movie fixes every concert using it.
+- Logo entries are image paths in v0.1. Format reserves `{ "loop": "file.mp4" }` for looping logos (v0.2).
+- "Open folder" builds a movie from `NN_name.mp4` files and saves `<folder>.movie.json` next to them.
+
+## Behaviour
+
+**Output = live item + optional cover.** Live item: black, logo, break, or clip (playing, paused, or ended holding its
+last frame; no loop, no stop screen). Cover: none, black, logo 1, logo 2.
+- B / L / Shift+L put a cover over the live item. The clip under it keeps its state: playing keeps running hidden (in
+  step with the music), paused stays on its frame. Space, seek and Home still act on the covered clip; LIVE preview
+  shows it with "COVERED · running" or "COVERED · paused".
+- Same key again removes the cover (no separate uncover key). Another cover key swaps the cover.
+- Black, then continue later from the same frame: B, Space (pause hidden), ... B (frame back), Space (play).
+- Cover is picture only: rehearsal audio of a covered running clip keeps playing.
+- GO replaces the live item and clears any cover. GO onto a black, logo or break item ends the clip (planned).
+
+**ARM / GO:** armed item loads paused on frame 0 and shows in the NEXT preview. Armed clip can be parked anywhere
+before GO (Opt+arrows or drag its own scrub bar under NEXT); GO starts it from there. Rehearsal flow: arm nearest
+clip, park it at a musical point, wait until the orchestra gets there, GO. GO auto-arms the next item in the
+flattened list. The projector only changes on a key press. GO is refused (status line says why) until the armed
+clip has a frame ready.
+
+**Break screen:** big text plus optional mm:ss countdown from GO, over black (or logo 1 if set). At 0:00 the countdown
+disappears and the screen holds. Rendered content, not UI.
+
+**Keys** (`keymap.json`, top-row and keypad digits both work, numpad/footswitch need no code):
+
+| Key | Action | Key | Action |
+|---|---|---|---|
+| Enter, keypad Enter | GO | B | black cover on/off (instant cut, always) |
+| Space | play/pause live clip (also covered) | L / Shift+L | logo 1 / 2 cover on/off (instant v0.1, 0.5 s fade v0.2) |
+| Left/Right | seek live 5 s | Shift+Left/Right | seek live 30 s |
+| Opt+Left/Right | park armed 5 s | Opt+Shift+Left/Right | park armed 30 s |
+| Up/Down, keypad -/+ | arm previous/next item | 0 to 9 | arm clip with that number in current movie |
+| Home (Fn+Left) | restart live clip | M | mute toggle (rehearsal only, press twice) |
+| Esc | nothing | Cmd+Q | quit (press twice; concert: press twice + click) |
+| Cmd+Opt+D | toggle Advanced view | | |
+
+Last key and its action are shown in the control window.
+
+**No modal dialogs during a show.** Every confirmation is "press again within 3 s", shown as a banner, so Enter or
+Space can never land in an alert.
+
+**Modes** (toggle at top, press twice to switch; switching never touches the output):
+
+| | Rehearsal | Concert |
+|---|---|---|
+| Editing | on | locked; "Unlock editing" + confirm, orange banner, live item can't be moved or deleted, Lock button relocks |
+| Plays | any movie, concert, or mp4 dropped on window | the concert list |
+| Audio | muted at launch, M toggles, loud badge naming the device ("AUDIO ON → HDMI") for the whole room | forced mute, M disabled |
+| Banner | none | big CONCERT |
+
+**Editor (v0.1, minimal):** new movie, new concert; add clips (file picker or drag in), black, break, logo, movie (to
+concert); drag reorder; delete (press twice); rename; planned end, tail, break minutes and countdown fields. Autosave,
+atomic write. Later: colours, briefs, undo, templates, duplicate.
+
+**Control window (layout A, always dark):** top bar (mode toggle, concert title, projector/power/audio/Hz status
+dots, last key, HU/EN); left 30% two-level list (movie headers, items, LIVE red, ARMED amber); right LIVE and NEXT
+previews side by side (NEXT has its own small scrub bar for parking), progress bar with white planned-end and amber tail-end markers, big "to planned end" time,
+smaller "to clip end"; button row with every key action and its key; status line at bottom (plain language, no codec
+names). Window fills the laptop screen so there is nothing else to click. If the app loses focus: big red "keys not
+reaching the app, click here" banner.
+
+**Advanced view (Cmd+Opt+D, for the owner):** log tail, key-to-switch timings, file details (codec, size, fps,
+duration, audio), projector modes, memory use, stress runner (random GO/BLACK/LOGO, logs timings).
+
+**Preflight** (launch and on load, results on control only): files exist; playable by AVFoundation (red if not, plain
+message); size, fps, codec, duration vs `planned_end_s + tail_s` (yellow if off by > 1 s or not 1920x1080 23.976,
+still plays); logos load; projector present and not mirrored; power adapter; current Hz and available rates;
+"Displays have separate Spaces" value; current sound output device (yellow if HDMI; app never changes it). Manual ticks: Focus/Do Not Disturb on, automatic updates off, old rig ready.
+
+**Projector unplugged:** hide output window before the reconfiguration finishes, never let macOS move it to the
+laptop. Red status on control. Playback continues. When a display matching the saved one (vendor, model, serial;
+else first external display) returns, re-show output in the current state.
+
+**Crash recovery:** state file written every second (open concert, mode, live item, position, cover). Relaunch: output
+black, same concert and mode, the previously live clip armed at its last position, status "Recovered. Was playing 03
+at 2:14." Only one instance may run. While the app is dead the projector shows the desktop: checklist says "switch to
+backup rig, relaunch".
+
+**Languages:** Hungarian default, English toggle in app, takes effect immediately. Own two-column string table
+(Apple localisation can't switch language in-app without relaunch). Logs English.
+
+## Architecture
+
+- SwiftPM package, no Xcode project, no dependencies. Targets: `CueCore` (Foundation only: models, file loading,
+  flattening, state machine, key map, `Player` protocol), `CueApp` (AppKit, SwiftUI for control window, AVFoundation),
+  `CueCoreTests` (state machine, file parsing, key map). Module names neutral so a rename touches one file.
+- Name, command, bundle ID, tagline live only in `app.env` (plain `KEY=value`, included by the Makefile). Code reads
+  name and ID from `Bundle.main`.
+- Build via `Makefile`: `make test`, `make app` (release build, assemble .app, Info.plist from `app.env`, sign),
+  `make run`, `make zip`, `make clean`. Signing: `SIGN_ID ?= -` (ad-hoc now; Developer ID + notarisation later is a
+  variable change plus one target).
+- Testing and day-to-day builds run locally (`make test`, `make run`). CI kept minimal: `bitrise.yml` in repo, macOS
+  Apple Silicon stack, one `release` workflow triggered by `v*` tags only: `make test`, `make app`, `make zip`, upload
+  zip as artifact. Push-to-`main` trigger present but commented out. Registering the app on Bitrise is left to the owner.
+- Repo: `https://github.com/Blintmester/Attacca.git`.
+- First open of a CI-built (downloaded, quarantined) ad-hoc app: System Settings > Privacy & Security > Open Anyway,
+  or `xattr -dr com.apple.quarantine <app>`. Locally built apps open directly.
+- Output window: borderless NSWindow at `CGShieldingWindowLevel`, frame = output screen frame, collection behaviour
+  `canJoinAllSpaces, stationary, ignoresCycle, fullScreenNone`, never key, black background layer. Presentation
+  options while up: hide Dock and menu bar, disable process switching and hide. Force Quit stays enabled. Cursor:
+  warped back to the control screen if it crosses onto the output screen. Native fullscreen rejected: own Space,
+  animated, exits on Esc or gestures.
+- Playback: two AVPlayers swapping live/armed roles, each with one layer on the output and one in a control preview.
+  `automaticallyWaitsToMinimizeStalling = false`, `actionAtItemEnd = .pause`, armed player prerolled. GO = one
+  CATransaction with actions disabled: show armed layer, hide others, then play. Clips scale with
+  `resizeAspect` on black, so any size or aspect works. Logo and break are CALayers on the output.
+- Sleep: `ProcessInfo.beginActivity(.idleDisplaySleepDisabled, .idleSystemSleepDisabled)` for the app's lifetime.
+- Display: `CGDisplayRegisterReconfigurationCallback` (begin flag -> hide output), `CGDisplayCopyAllDisplayModes`
+  for Hz, `CGDisplayIsInMirrorSet`. Power: `IOPSGetProvidingPowerSourceType`.
+- Logs: `~/Library/Logs/<name>/YYYY-MM-DD.log`, plain lines, keep 14 days. State: `~/Library/Application Support/<bundle id>/`.
+- Refresh rate guidance (doc): prefer 23.976 > 47.95 > 71.93 > 24 > 48 > 72 > 60 Hz on the projector. App never
+  changes display modes itself.
+- Port note: KMP/Compose would share only `CueCore`-sized logic (~15%, claim holds); no video, window or display
+  control. `CueCore` is Foundation-only and could compile with Swift on Windows. Windows player decided later.
+
+## v0.1 build order (cut from the bottom if Thursday comes)
+
+1. Output window, two-player ARM/GO, BLACK, LOGO, keys, mute, sleep prevention, single instance, black on relaunch.
+2. Movie/concert files, flattened list, auto-arm, break screen, "Open folder".
+3. Preflight, status line, display unplug/replug, crash recovery state.
+4. Editor, rehearsal/concert modes, emergency unlock.
+5. Languages, cheat sheet (HTML from keymap, HU+EN), operator checklist, Advanced view, stress runner.
+
+Deliverables with code: `docs/operator-checklist.md` (HU+EN, one page), generated cheat sheet, `docs/rehearsal-test.md`
+(manual test script), first-run note for unsigned builds.
+
+**v0.2+:** converter (ffmpeg from Homebrew/Nix, hardware H.264, disabled while a clip is live), looping logos, logo
+fade, editor extras, bar numbers mapped to timestamps (park armed clip by bar), tablet remote, rehearsal timer,
+per-clip notes, Windows.
+
+## To verify on hardware before Friday
+
+Shielding level covers notification banners and volume/brightness OSD; behaviour with "separate Spaces" on and off;
+projector Hz list; HDMI unplug/replug with output live; GO switch time and no black frame on TV and projector.
