@@ -13,15 +13,6 @@ struct TopBar: View {
                 .font(.system(size: 17, weight: .semibold))
                 .lineLimit(1)
                 .frame(minWidth: 140, alignment: .leading)
-            // Rehearsal only: an unlocked concert may edit its show but never swap it for another.
-            if model.state.mode == .rehearsal {
-                HStack(spacing: 8) {
-                    BarButton(text: s.open, action: pickers.openShow)
-                    BarButton(text: s.newMovie, action: pickers.newMovie)
-                    BarButton(text: s.newConcert, action: pickers.newConcert)
-                }
-                .fixedSize()
-            }
             ProjectorStatus(model: model).frame(maxWidth: 280, alignment: .leading).layoutPriority(1)
             AudioBadge(model: model).frame(maxWidth: 300, alignment: .leading).layoutPriority(1)
             Spacer(minLength: 8)

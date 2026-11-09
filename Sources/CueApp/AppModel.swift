@@ -525,13 +525,21 @@ final class AppModel {
     func startDrag(_ place: Place) -> String {
         let token = "row-" + UUID().uuidString
         dragged = (place, token)
+        Log.deferred("drag start \(place.file.lastPathComponent)#\(place.index)")
         return token
     }
 
     func drop(token: String, onto target: Place) {
-        guard let dragged, dragged.token == token else { return }
+        guard let dragged, dragged.token == token else {
+            Log.deferred("drop ignored: token mismatch (dragging: \(self.dragged != nil))")
+            return
+        }
         self.dragged = nil
-        guard dragged.place.file == target.file, dragged.place != target else { return }
+        guard dragged.place.file == target.file, dragged.place != target else {
+            let sameFile = dragged.place.file == target.file
+            Log.deferred("drop ignored: \(dragged.place.index) onto \(target.index), same file: \(sameFile)")
+            return
+        }
         edit(.move(dragged.place, to: target.index))
     }
 
