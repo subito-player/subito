@@ -24,7 +24,9 @@ time. Note every surprise in the log at the bottom; it drives v0.2.
    add a 20-minute break with countdown between the two halves, add Logo 1 at the end. Relaunch: same show.
 6. Advanced view (Ctrl+Opt+D): GO times fill in (expect well under 100 ms), memory against launch. Cheat sheet button:
    print it for the operator. Then a 200-switch stress run watching the projector; any key stops it.
-7. Concert mode: click Koncert twice. Red banner, Dock and menu bar gone, Cmd+Tab blocked, M refused. Unlock with two
+7. Output view (rehearsal only, status row "Nézet"): Ablakban gives a floating, resizable output window; Kikapcsolva
+   hides the output while previews and GO keep working; back to Teljes képernyő lands on the projector again.
+8. Concert mode: click Koncert twice. The output view returns to fullscreen by itself. Red banner, Dock and menu bar gone, Cmd+Tab blocked, M refused. Unlock with two
    clicks (orange), Lock again.
 
 ## During rehearsal (operator drives, owner beside)
