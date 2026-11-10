@@ -37,7 +37,7 @@ The in-app editor writes the same format.
 | `format` | yes | Always `1`. A higher number makes the app say "update the app". |
 | `title` | yes | Movie header in the cue list. |
 | `items` | no | Cues in play order. Allowed types: `clip`, `black`, `break`, `logo`. No `movie` inside a movie. |
-| `colour` | no | `"#RRGGBB"` or `"#RGB"`: swatch before the movie header in the list. Anything else shows no swatch. |
+| `colour` | no | Kept on save, not shown. |
 
 Clip item:
 
@@ -49,7 +49,7 @@ Clip item:
 | `title` | no | Shown in the list and previews. Default: filename without prefix, `_` to spaces, words capitalised. |
 | `planned_end_s` | no | Seconds where the music ends. White marker, big "to planned end" timer. No value means no markers. |
 | `tail_s` | no | Safety footage after the planned end, in seconds. Amber marker at `planned_end_s + tail_s`. |
-| `colour` | no | `"#RRGGBB"` or `"#RGB"`: swatch next to the clip number in the list. Anything else shows no swatch. |
+| `colour` | no | Kept on save, not shown. |
 | `brief` | no | Note for the operator, under the LIVE and NEXT preview titles (2 lines, then cut). Never on the projector. Edited in the inspector. |
 
 Preflight warns (still plays) when a clip isn't 1920x1080, isn't 23.976 fps, `planned_end_s` is past the end of the

@@ -69,23 +69,20 @@ struct CueList: View {
                     ForEach(Array(model.rows.enumerated()), id: \.offset) { _, row in
                         switch row.kind {
                         case .movie(let movie, let title):
-                            HStack(spacing: 8) {
-                                Swatch(colour: row.movie.flatMap { model.document?.movies[$0]?.colour })
-                                Text("\(movie + 1) · \(title)".uppercased())
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .tracking(0.8)
-                                    .foregroundStyle(Palette.dim)
-                                    .lineLimit(1)
-                            }
-                            .padding(.horizontal, 14)
-                            .padding(.top, 14)
-                            .padding(.bottom, 4)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .modifier(RowControls(model: model, row: row) {})
+                            Text("\(movie + 1) · \(title)".uppercased())
+                                .font(.system(size: 13, weight: .semibold))
+                                .tracking(0.8)
+                                .foregroundStyle(Palette.dim)
+                                .lineLimit(1)
+                                .padding(.horizontal, 14)
+                                .padding(.top, 14)
+                                .padding(.bottom, 4)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .modifier(RowControls(model: model, row: row) {})
                         case .cue(let index) where state.cues.indices.contains(index):
                             let cue = state.cues[index]
                             CueRow(
-                                number: s.number(cue), label: s.label(cue), meta: meta(cue), colour: colour(cue),
+                                number: s.number(cue), label: s.label(cue), meta: meta(cue),
                                 blocked: blocked.contains(index),
                                 role: index == state.liveIndex ? .live : index == state.armedIndex ? .armed : nil
                             )
@@ -108,11 +105,6 @@ struct CueList: View {
     private func meta(_ cue: Cue) -> String {
         guard case .clip(_, let url) = cue.kind, let duration = model.durations[url] else { return "" }
         return clockText(duration, rounding: .toNearestOrAwayFromZero)
-    }
-
-    private func colour(_ cue: Cue) -> String? {
-        guard case .clip(let clip, _) = cue.kind else { return nil }
-        return clip.colour
     }
 
     // No anchor scrolls only as far as needed, so the list never jumps when both rows are already visible.
@@ -381,13 +373,11 @@ private struct CueRow: View {
     let number: String
     let label: String
     let meta: String
-    let colour: String?
     let blocked: Bool
     let role: Role?
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Swatch(colour: colour)
             Text(number)
                 .font(.system(size: 15, weight: .semibold).monospacedDigit())
                 .foregroundStyle(Palette.dim)
@@ -419,16 +409,5 @@ private struct CueRow: View {
         case .armed: Palette.armed
         case nil: .clear
         }
-    }
-}
-
-// Takes its place even without a colour, so titles line up down the list.
-private struct Swatch: View {
-    let colour: String?
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: 2)
-            .fill(colour.flatMap(HexColour.rgb(from:)).map { Color(hex: $0) } ?? .clear)
-            .frame(width: 8, height: 8)
     }
 }
