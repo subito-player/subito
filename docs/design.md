@@ -197,7 +197,7 @@ the app is dead the projector shows the desktop: checklist says "switch to backu
 - Testing and day-to-day builds run locally (`make test`, `make run`). CI kept minimal: `bitrise.yml` in repo, macOS
   Apple Silicon stack, one `release` workflow triggered by `v*` tags only: `make test`, `make app`, `make zip`, upload
   zip as artifact, machine `g2.mac.medium`. Builds on `main` merges: add a push trigger in the Workflow Editor.
-- Repo: `https://github.com/Blintmester/Subito.git`.
+- Repo: `https://github.com/subito-player/subito` (public, GPLv3).
 - First open of a CI-built (downloaded, quarantined) ad-hoc app: System Settings > Privacy & Security > Open Anyway,
   or `xattr -dr com.apple.quarantine <app>`. Locally built apps open directly.
 - Output window: borderless NSWindow at `CGShieldingWindowLevel`, frame = output screen frame, collection behaviour
