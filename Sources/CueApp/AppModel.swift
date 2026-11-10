@@ -338,6 +338,7 @@ final class AppModel {
             loadErrors.removeAll()
             selection = nil
             deletePending = nil
+            dragged = nil
             drafts = [:]
             focusedField = nil
             engine.setLogos(document.logos)
@@ -620,15 +621,15 @@ final class AppModel {
         return token
     }
 
-    func drop(token: String, onto target: Place) {
+    // An ignored drop keeps the drag, because AppKit may reuse the same token when the row is dragged again.
+    func drop(token: String, onto row: Row) {
         guard let dragged, dragged.token == token else {
             Log.deferred("drop ignored: token mismatch (dragging: \(self.dragged != nil))")
             return
         }
-        self.dragged = nil
-        guard dragged.place.file == target.file, dragged.place != target else {
-            let sameFile = dragged.place.file == target.file
-            Log.deferred("drop ignored: \(dragged.place.index) onto \(target.index), same file: \(sameFile)")
+        guard let target = document?.dropPlace(moving: dragged.place, onto: row), target != dragged.place else {
+            let onto = row.place.map { "\($0.file.lastPathComponent)#\($0.index)" } ?? "header"
+            Log.deferred("drop ignored: \(dragged.place.file.lastPathComponent)#\(dragged.place.index) onto \(onto)")
             return
         }
         edit(.move(dragged.place, to: target.index))
@@ -710,6 +711,8 @@ final class AppModel {
 
     func edit(_ op: Edit) {
         commitDrafts()
+        // Places shift with every edit, so an older drag must never move anything.
+        dragged = nil
         perform(op)
     }
 

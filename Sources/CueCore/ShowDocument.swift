@@ -182,6 +182,16 @@ public struct ShowDocument: Equatable, Sendable {
         }
     }
 
+    // A concert item dropped on a row inside a movie lands on that movie's own concert entry.
+    public func dropPlace(moving source: Place, onto row: Row) -> Place? {
+        guard let target = row.place else { return nil }
+        if target.file == source.file { return target }
+        guard isConcert(source.file), case .cue(let index) = row.kind, origins.indices.contains(index),
+            let entry = origins[index].concert
+        else { return nil }
+        return Place(file: url, index: entry)
+    }
+
     public func apply(_ edit: Edit, live: Int?) -> Result<EditResult, EditRefusal> {
         switch edit {
         case .insert(let item, let place):

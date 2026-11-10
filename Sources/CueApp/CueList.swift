@@ -78,7 +78,7 @@ struct CueList: View {
                                 .padding(.top, 14)
                                 .padding(.bottom, 4)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .modifier(RowControls(model: model, place: row.place) {})
+                                .modifier(RowControls(model: model, row: row) {})
                         case .cue(let index) where state.cues.indices.contains(index):
                             let cue = state.cues[index]
                             CueRow(
@@ -86,7 +86,7 @@ struct CueList: View {
                                 blocked: blocked.contains(index),
                                 role: index == state.liveIndex ? .live : index == state.armedIndex ? .armed : nil
                             )
-                            .modifier(RowControls(model: model, place: row.place) { model.send(.arm(index: index)) })
+                            .modifier(RowControls(model: model, row: row) { model.send(.arm(index: index)) })
                             .id(index)
                         case .cue:
                             EmptyView()
@@ -117,11 +117,11 @@ struct CueList: View {
 // Outside edit mode a click arms; in edit mode it selects, and the row gets delete, drag and drop.
 private struct RowControls: ViewModifier {
     let model: AppModel
-    let place: Place?
+    let row: Row
     let tap: () -> Void
 
     func body(content: Content) -> some View {
-        if model.editing, let place {
+        if model.editing, let place = row.place {
             let locked = model.isLocked(place)
             HStack(spacing: 0) {
                 content
@@ -135,7 +135,7 @@ private struct RowControls: ViewModifier {
             .contentShape(Rectangle())
             .onTapGesture { model.select(place) }
             .draggable(unless: locked) { model.startDrag(place) }
-            .onDrop(of: [.fileURL, .utf8PlainText], delegate: ListDrop(model: model, target: place))
+            .onDrop(of: [.fileURL, .utf8PlainText], delegate: ListDrop(model: model, target: row))
         } else {
             content.contentShape(Rectangle()).onTapGesture(perform: tap)
         }
@@ -174,10 +174,10 @@ extension View {
     }
 }
 
-// Finder files become clips or movies anywhere on the list; a row also takes rows of its own file.
+// Finder files become clips or movies; a row takes rows of its own file, a movie's rows also concert items.
 private struct ListDrop: DropDelegate {
     let model: AppModel
-    let target: Place?
+    let target: Row?
 
     // Finder files work outside edit mode too: dropping them starts editing.
     func validateDrop(info: DropInfo) -> Bool {
@@ -193,7 +193,7 @@ private struct ListDrop: DropDelegate {
         let model = model
         let all = info.itemProviders(for: [.fileURL, .utf8PlainText])
         let kind = DropKind.classify(all.map(\.registeredTypeIdentifiers))
-        Log.deferred("drop \(kind) on row \(target.map { "\($0.index)" } ?? "list")")
+        Log.deferred("drop \(kind) on row \(target?.place.map { "\($0.index)" } ?? "list")")
         if kind == .files {
             if !model.editing { model.toggleEditing() }
             let files = all.filter { DropKind.classify([$0.registeredTypeIdentifiers]) == .files }
