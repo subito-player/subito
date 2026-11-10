@@ -23,7 +23,10 @@ Built entirely by Claude agents. Rules adapted from the temporal hub. Spec: `des
   non-obvious why.
 - No `Co-Authored-By`, no `Claude-Session`, no claude.ai links.
 - PR body: 3 to 5 bullets (what, why, merge order), last line `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
-- Never push to `main` directly, never force-push it. Only exception: the one-time initial commit into the empty repo.
+- Never push to `main` directly, never force-push it. Exceptions so far: the one-time initial commit into the empty
+  repo, and the owner-ordered author-email rewrite of 2026-11-10.
+- Merge with `gh pr merge --merge --delete-branch --author-email me@blint.me`: GitHub otherwise signs the merge commit
+  with the account's primary email.
 - After a merge, check the commits are ancestors of `origin/main` (`git merge-base --is-ancestor`).
 - Tags and releases: owner only.
 
