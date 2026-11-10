@@ -51,6 +51,26 @@ time. Note every surprise in the log at the bottom; it drives v0.2.
 - 1000 random GO/black/logo switches from the stress runner with no visible artefact.
 - `kill -9` then relaunch returns to black.
 
+## Companion notes (draft, not final)
+
+**Not final.** The phone/tablet companion is not designed yet and nothing below is decided. These notes are the input
+for its design after the rehearsal.
+
+Guess to check against (2026-11-10):
+
+- Owner in the orchestra (trumpet): phone on the stand, glance only. LIVE clip and time to planned end, NEXT, one
+  "all OK" line or the problem. Nothing to press.
+- Conductor: sees what the audience sees and where the clip is (time, later bar number); can send a request to the
+  operator's screen ("restart from bar 57", "black"). Never drives the projector; the operator presses every key.
+- A web page served by the Mac on local Wi-Fi, opened by QR code, no app to install.
+
+Write down every moment you (from your chair) or the conductor wished to see or do something without walking to the
+laptop, and what happened instead.
+
+| Time | Who | Wanted to see or do | What happened instead |
+|---|---|---|---|
+| | | | |
+
 ## Log
 
 | Time | What happened | What the operator expected | Fix idea |
