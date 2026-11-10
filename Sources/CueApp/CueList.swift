@@ -62,6 +62,9 @@ struct CueList: View {
                 VStack(alignment: .leading, spacing: 0) {
                     if model.document == nil {
                         Text(s.noShow).foregroundStyle(Palette.dim).padding(16)
+                    } else if model.rows.isEmpty {
+                        Text(model.document?.concert == nil ? s.emptyMovie : s.emptyConcert)
+                            .foregroundStyle(Palette.dim).padding(16)
                     }
                     ForEach(Array(model.rows.enumerated()), id: \.offset) { _, row in
                         switch row.kind {
@@ -171,15 +174,15 @@ extension View {
     }
 }
 
-// Finder files become clips anywhere on the list; a row also takes rows of its own file.
+// Finder files become clips or movies anywhere on the list; a row also takes rows of its own file.
 private struct ListDrop: DropDelegate {
     let model: AppModel
     let target: Place?
 
+    // Finder files work outside edit mode too: dropping them starts editing.
     func validateDrop(info: DropInfo) -> Bool {
-        model.editing
-            && (info.hasItemsConforming(to: [.fileURL])
-                || (target != nil && info.hasItemsConforming(to: [.utf8PlainText])))
+        if info.hasItemsConforming(to: [.fileURL]) { return model.canEdit && model.document != nil }
+        return model.editing && target != nil && info.hasItemsConforming(to: [.utf8PlainText])
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
@@ -192,8 +195,9 @@ private struct ListDrop: DropDelegate {
         let kind = DropKind.classify(all.map(\.registeredTypeIdentifiers))
         Log.deferred("drop \(kind) on row \(target.map { "\($0.index)" } ?? "list")")
         if kind == .files {
+            if !model.editing { model.toggleEditing() }
             let files = all.filter { DropKind.classify([$0.registeredTypeIdentifiers]) == .files }
-            Self.load(files) { urls in model.addClips(urls) }
+            Self.load(files) { urls in model.addFiles(urls) }
             return true
         }
         guard kind == .row, let target, let provider = all.first else { return false }

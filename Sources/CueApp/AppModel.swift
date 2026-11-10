@@ -651,8 +651,26 @@ final class AppModel {
         edit(.insertClips(clips, at: place))
     }
 
+    // Finder drops: videos become clips, a movie file or clip folder becomes a movie.
+    func addFiles(_ urls: [URL]) {
+        var clips: [URL] = []
+        for url in urls {
+            var isFolder: ObjCBool = false
+            _ = FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder)
+            switch DroppedFile.classify(url, isFolder: isFolder.boolValue, isVideo: Self.isVideo(url)) {
+            case .clip: clips.append(url)
+            case .movie: addMovie(url)
+            case .none: Log.deferred("drop ignored: \(url.lastPathComponent)")
+            }
+        }
+        addClips(clips)
+    }
+
     func addMovie(_ url: URL) {
-        guard canEdit, let place = document?.insertionPlace(for: .movie, selected: selection) else { return }
+        guard canEdit, let document else { return }
+        guard let place = document.insertionPlace(for: .movie, selected: selection) else {
+            return showEditNotice(.refused(.movieInMovie))
+        }
         // A concert used as a movie would stop its own concert from loading.
         guard !url.lastPathComponent.hasSuffix(".concert.json") else {
             return showEditNotice(.concertAsMovie)
@@ -671,7 +689,8 @@ final class AppModel {
     func createConcert(at url: URL) {
         guard state.mode == .rehearsal else { return }
         do {
-            open(try ShowLoader.createConcert(at: url.standardizedFileURL).path)
+            // A new concert is empty, so it opens ready to edit.
+            if open(try ShowLoader.createConcert(at: url.standardizedFileURL).path), !editing { toggleEditing() }
         } catch {
             Log.info("error: cannot create \(url.path): \(error.localizedDescription)")
             problems.append(.save(file: url.lastPathComponent, reason: error.localizedDescription))
