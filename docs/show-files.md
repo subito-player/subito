@@ -12,7 +12,7 @@ The in-app editor writes the same format.
 - Unknown keys are ignored when reading, and dropped the first time the editor saves the file. Keep extra metadata
   (bars, audio notes, source project, approvals) in a separate file, never only in the show file.
 - "Open folder" on a clip folder uses `<folder name>.movie.json` inside it when it exists, else builds one from the
-  `NN_name.mp4` files.
+  `NN_name.*` video files (MKV, WebM, AVI and similar are listed red, to convert, unless a same-named MP4 exists).
 - Check a file without the UI: `build/Attacca.app/Contents/MacOS/Attacca --check <file>`. Exit 0 ok, 1 warnings,
   2 a clip can't play, 3 the file can't be loaded.
 

@@ -53,7 +53,9 @@ also generate movie files.
 - Logo entries are an image path or `{ "loop": "file.mp4" }`: a muted video that loops seamlessly and restarts from
   frame 0 each time it is shown. An empty string is a number with no file: it shows black, and preflight warns when a
   logo cue uses it. The concert inspector picks logo 1 and 2 (image or video).
-- "Open folder" builds a movie from `NN_name.mp4` files and saves `<folder>.movie.json` next to them.
+- "Open folder" builds a movie from `NN_name.mp4` (also `.mov`, `.m4v`) files and saves `<folder>.movie.json` next to
+  them. MKV, WebM, AVI and other ffmpeg formats are listed too (red in preflight, ready to convert) unless an MP4 or
+  MOV with the same name is already there.
 
 ## Behaviour
 

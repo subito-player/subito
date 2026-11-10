@@ -59,7 +59,11 @@ public struct Cue: Equatable, Sendable {
 }
 
 public enum ShowLoader {
-    private static let clipExtensions: Set<String> = ["mp4", "mov", "m4v"]
+    private static let playableExtensions: Set<String> = ["mp4", "mov", "m4v"]
+    // Listed so preflight marks them red and the converter can offer an MP4.
+    private static let convertibleExtensions: Set<String> = [
+        "mkv", "webm", "avi", "wmv", "flv", "mpg", "mpeg", "ts", "mts", "m2ts",
+    ]
 
     public static func resolve(_ path: String, relativeTo file: URL) -> URL {
         URL(fileURLWithPath: path, isDirectory: false, relativeTo: file.deletingLastPathComponent()).absoluteURL
@@ -99,8 +103,17 @@ public enum ShowLoader {
     }
 
     public static func movie(fromFolder folder: URL) throws -> Movie {
-        let entries = try FileManager.default.contentsOfDirectory(atPath: folder.path)
-            .filter { clipExtensions.contains(URL(fileURLWithPath: $0).pathExtension.lowercased()) }
+        let names = try FileManager.default.contentsOfDirectory(atPath: folder.path)
+        let kind = { (name: String) in URL(fileURLWithPath: name).pathExtension.lowercased() }
+        let stem = { (name: String) in URL(fileURLWithPath: name).deletingPathExtension().lastPathComponent }
+        // A converted copy takes its source's place.
+        let playable = Set(names.filter { playableExtensions.contains(kind($0)) }.map(stem))
+        let entries =
+            names
+            .filter {
+                playableExtensions.contains(kind($0))
+                    || (convertibleExtensions.contains(kind($0)) && !playable.contains(stem($0)))
+            }
             .compactMap { name -> (number: Int, name: String)? in
                 Clip(file: name).resolvedNumber.map { ($0, name) }
             }
