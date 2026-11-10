@@ -111,9 +111,9 @@ The mode survives every launch: a clean launch restores the saved mode too, so c
 
 **Editor (v0.1, minimal):** new movie, new concert (opens in edit mode); add clips (file picker or drag in), black,
 break, logo, movie (to concert: + Movie, or drag in a `.movie.json` or clip folder); drag reorder; delete (press
-twice); rename; planned end, tail, break minutes and countdown fields. Dragging Finder files onto the list starts
-editing (rehearsal, or unlocked concert); an empty show says what to do. Autosave, atomic write. Later: editing
-colours and briefs, undo, templates, duplicate.
+twice); rename; brief, planned end, tail, break minutes and countdown fields. Dragging Finder files onto the list
+starts editing (rehearsal, or unlocked concert); an empty show says what to do. Autosave, atomic write. Later: editing
+colours, undo, templates, duplicate.
 While an editor text field is being edited, keys go to the field (banner says so); Enter or Esc ends typing, and
 from then on keys drive the show again.
 

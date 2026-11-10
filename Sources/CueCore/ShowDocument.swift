@@ -50,6 +50,8 @@ public enum Edit: Equatable, Sendable {
     case renameMovie(URL, String)
     // Blank goes back to the title from the file name.
     case renameClip(Place, String)
+    // Blank removes the brief.
+    case setBrief(Place, String)
     // Blank goes back to the default break title.
     case setBreakText(Place, String)
     case setClipTimes(Place, plannedEndS: Double?, tailS: Double?)
@@ -237,6 +239,8 @@ public struct ShowDocument: Equatable, Sendable {
             return .success(unchanged(document, file: file))
         case .renameClip(let place, let title):
             return modifyClip(place) { clip in clip.title = Self.text(title) }
+        case .setBrief(let place, let brief):
+            return modifyClip(place) { clip in clip.brief = Self.text(brief) }
         case .setBreakText(let place, let text):
             return modifyBreak(place) { item in item.text = Self.text(text) }
         case .setClipTimes(let place, let plannedEndS, let tailS):
