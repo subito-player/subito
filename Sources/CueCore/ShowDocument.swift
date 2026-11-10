@@ -270,7 +270,9 @@ public struct ShowDocument: Equatable, Sendable {
             switch change {
             case .own(let entry) where entry.file.isEmpty: change = .empty
             case .own(var entry):
-                entry.file = relative(entry.file)
+                // The file already stored (a rename) stays as written, relative or absolute.
+                let stored: String? = if case .own(let own) = changed.pictureOverride(number) { own.file } else { nil }
+                if entry.file != stored { entry.file = relative(entry.file) }
                 change = .own(entry)
             default: break
             }

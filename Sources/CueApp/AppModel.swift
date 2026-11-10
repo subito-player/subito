@@ -67,6 +67,7 @@ enum EditNotice: Error, Equatable {
     case concertAsMovie
     case convertWhileRunning
     case convertFailed(file: String, Conversion.Failure)
+    case clickSelects
 }
 
 // An inspector field; its place pins a draft to one item, so it never lands on another.
@@ -680,6 +681,13 @@ final class AppModel {
         emptyPending = nil
     }
 
+    // Edit mode selects; without a numpad the click is the only way to show a slot, so the status line says so.
+    func clickPicture(_ number: Int) {
+        guard editing else { return send(.toggleCover(.logo(number))) }
+        selectPicture(number)
+        showEditNotice(.clickSelects)
+    }
+
     func selectPicture(_ number: Int) {
         guard editing, (1...pictureCount).contains(number), selectedPicture != number else { return }
         commitDrafts()
@@ -728,11 +736,12 @@ final class AppModel {
     private func writePicture(_ number: Int, _ change: PictureChange) {
         commitDrafts()
         let shown = pictures.indices.contains(number - 1) ? pictures[number - 1] : nil
-        switch Pictures.write(change, to: number, shown: shown, scope: pictureScope) {
-        case .concert(let override)?: edit(.setPicture(number, override))
-        case .defaultSet(let override)?: setDefaultPicture(number, override)
-        case nil: break
-        }
+        let concert = document?.concert
+        guard let write = Pictures.write(change, to: number, shown: shown, concert: concert, scope: pictureScope)
+        else { return }
+        // The concert's setting first, so the new default file is the one shown when its probe is reset.
+        if let override = write.concert { edit(.setPicture(number, override)) }
+        if let override = write.defaultSet { setDefaultPicture(number, override) }
     }
 
     // Press twice within the confirm window; a delete cannot be undone.

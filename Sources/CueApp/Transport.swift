@@ -186,7 +186,7 @@ private struct KeyButton: View {
     }
 }
 
-// Outside edit mode a click is the picture's cover key; in edit mode it selects the picture for the inspector.
+// Outside edit mode a click is the picture's cover key; in edit mode it selects it (`AppModel.clickPicture`).
 private struct PictureButton: View {
     let model: AppModel
     let number: Int
@@ -196,11 +196,7 @@ private struct PictureButton: View {
         let picture = model.pictures[number - 1]
         let on = model.state.cover == .logo(number)
         Button {
-            if model.editing {
-                model.selectPicture(number)
-            } else {
-                model.send(.toggleCover(.logo(number)))
-            }
+            model.clickPicture(number)
         } label: {
             Group {
                 if let picture { filled(picture) } else { empty }

@@ -117,11 +117,13 @@ break, logo, movie (to concert: + Movie, or drag in a `.movie.json` or clip fold
 twice); rename; brief, planned end, tail, break minutes and countdown fields. Dragging Finder files onto the list
 starts editing (rehearsal, or unlocked concert); an empty show says what to do. Autosave, atomic write. Later: undo,
 templates, duplicate.
-Picture inspector (edit mode, click a logo or slot; it replaces the row selection): Name (slots only), File
-(Choose...: an image, or an MP4, MOV or M4V that loops), its key (read-only), "Saved for" = where the next change goes:
-This concert only (where it starts, on every selection, with a concert open) or Every concert (the default set; the
-only choice with a single movie open), Back to default (the concert's own picture), Empty (press twice). A new name or
-file keeps the other field of the picture shown.
+Picture inspector (edit mode, click a logo or slot; it replaces the row selection, and the status line says a click
+there selects): "Saved for" first = where the next change goes: This concert only (where it starts, on every
+selection, with a concert open) or Every concert (the default set; the only choice with a single movie open), then
+Name (slots only), File (Choose...: an image, or an MP4, MOV or M4V that loops), its key (read-only), Back to default
+(the concert's own picture or ""), Empty (press twice). A new name or file keeps the other field of the picture shown.
+Every concert includes the open one: a change or Empty there also drops this concert's own setting, so it shows at
+once.
 While an editor text field is being edited, keys go to the field (banner says so); Enter or Esc ends typing, and
 from then on keys drive the show again.
 

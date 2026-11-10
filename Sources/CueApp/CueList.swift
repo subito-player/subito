@@ -317,15 +317,25 @@ private struct PictureInspector: View {
     var body: some View {
         let s = model.strings
         let shown = model.pictures[number - 1]
-        let fromDefault = Pictures.merge(defaults: model.defaultSlots, concert: nil, concertURL: nil)[number - 1]
-        let concert = model.document?.concert != nil
-        // A concert's "" over a default picture is the concert's own too, so Back to default undoes it.
-        let own = concert && (shown?.source == .concert || (shown == nil && fromDefault != nil))
-        let scope = model.pictureScope
+        let concert = model.document?.concert
+        let own = Pictures.concertOverrides(number, in: concert)
+        let canEmpty = Pictures.canEmpty(
+            number, shown: shown, defaults: model.defaultSlots, concert: concert, scope: model.pictureScope)
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Text(s.pictureTitle(number)).font(.system(size: 15, weight: .bold))
                 if shown != nil || own { SourceTag(own: own, strings: s) }
+            }
+            // First, so a form filled top to bottom saves where it was meant to.
+            labelled(s.savedFor) {
+                if concert != nil {
+                    VStack(alignment: .leading, spacing: 4) {
+                        radio(s.thisConcertOnly, .thisConcert)
+                        radio(s.everyConcert, .everyConcert)
+                    }
+                } else {
+                    Text(s.everyConcert)
+                }
             }
             if number > logoCount, shown != nil {
                 EditField(
@@ -345,20 +355,9 @@ private struct PictureInspector: View {
             labelled(s.pictureKey) {
                 Text(s.key(for: .command(.toggleCover(.logo(number))))).font(.system(size: 14, design: .monospaced))
             }
-            labelled(s.savedFor) {
-                if concert {
-                    VStack(alignment: .leading, spacing: 4) {
-                        radio(s.thisConcertOnly, .thisConcert)
-                        radio(s.everyConcert, .everyConcert)
-                    }
-                } else {
-                    Text(s.everyConcert)
-                }
-            }
             HStack(spacing: 6) {
                 if own { BarButton(text: s.backToDefault) { model.resetPicture(number) } }
-                // Only what the chosen scope holds can be emptied there.
-                if scope == .thisConcert ? shown != nil : fromDefault != nil {
+                if canEmpty {
                     BarButton(text: s.emptyPicture, on: model.emptyPending == number) {
                         model.requestEmptyPicture(number)
                     }

@@ -298,6 +298,10 @@ struct Strings {
             pick(
                 "A konvertálás nem sikerült: \(file): \(convertFailure(failure))",
                 "Conversion failed: \(file): \(convertFailure(failure))")
+        case .clickSelects:
+            pick(
+                "Szerkesztés: a kattintás kijelöl, a vetítéshez lépj ki a Szerkesztésből",
+                "Edit mode: a click selects. Leave Edit to show it on the projector.")
         }
     }
 
