@@ -29,6 +29,7 @@ final class PlaybackEngine: Player {
 
     var onEvent: (Command) -> Void = { _ in }
     var onLoadError: (Slot, URL, LoadFailure) -> Void = { _, _, _ in }
+    var onLoopFailed: (URL) -> Void = { _ in }
     let window: OutputWindow
     // Read at GO, so a language switch never changes the projector until the next break.
     var defaultBreakTitle: String
@@ -108,12 +109,10 @@ final class PlaybackEngine: Player {
             switch file {
             case .image(let url)? where images[url] == nil:
                 images[url] = PreflightRunner.logoImage(at: url)
-                if images[url] == nil { Log.info("logo \(index + 1) cannot be loaded: \(url.path)") }
+                if images[url] == nil { Log.info("picture \(index + 1) cannot be loaded: \(url.path)") }
             case .loop(let url)? where loops[url] == nil:
-                let loop = LoopLogo(url: url)
-                loops[url] = loop
-                window.addLoop(url, player: loop.player)
-                Log.info("logo \(index + 1) loops \(url.path)")
+                addLoop(url)
+                Log.info("picture \(index + 1) loops \(url.path)")
             default:
                 break
             }
@@ -129,8 +128,35 @@ final class PlaybackEngine: Player {
         }
     }
 
+    // What a logo cue shows: Logo 1 or 2 only, so a slot never becomes the live item.
+    func liveLogo(_ number: Int) -> LogoPicture? {
+        (1...logoCount).contains(number) ? logo(number) : nil
+    }
+
     func loopPlayer(_ url: URL) -> AVPlayer? {
         loops[url]?.player
+    }
+
+    // Loops whose player could not play their file; a cover press on them is refused.
+    var failedLoops: Set<URL> {
+        Set(loops.filter { $0.value.failed }.keys)
+    }
+
+    // A player built while its file was missing never recovers, so it is built again once off the output.
+    func rebuildFailedLoops() {
+        for (url, loop) in loops where loop.failed && !loop.running {
+            loop.stop()
+            window.removeLoop(url)
+            addLoop(url)
+            Log.info("logo loop \(url.lastPathComponent) built again")
+        }
+    }
+
+    private func addLoop(_ url: URL) {
+        let loop = LoopLogo(url: url)
+        loop.onFailed = { [weak self] in self?.onLoopFailed(url) }
+        loops[url] = loop
+        window.addLoop(url, player: loop.player)
     }
 
     // Loads run after the commit, so the old live player never swaps items before its layer hides; returns switch ms.
@@ -239,7 +265,7 @@ final class PlaybackEngine: Player {
         case .black:
             window.showBase(clip: nil, logo: nil, breakScreen: false)
         case .logo(let number):
-            basePicture = logo(number)
+            basePicture = liveLogo(number)
             window.showBase(clip: nil, logo: basePicture, breakScreen: false)
         case .clip(let slot):
             window.showBase(clip: slot, logo: nil, breakScreen: false)
@@ -445,6 +471,7 @@ private final class LoopLogo {
     private var prerolled = false
     // Playing, or still visible while a fade-out ends.
     private(set) var running = false
+    var onFailed: () -> Void = {}
 
     init(url: URL) {
         name = url.lastPathComponent
@@ -456,10 +483,16 @@ private final class LoopLogo {
                 DispatchQueue.main.async { MainActor.assumeIsolated { self?.preroll() } }
             })
         observations.append(
-            looper.observe(\.status, options: [.new]) { [name] looper, _ in
+            looper.observe(\.status, options: [.new]) { [weak self, name] looper, _ in
                 guard looper.status == .failed else { return }
                 Log.info("logo loop \(name) cannot play: \(looper.error?.localizedDescription ?? "unknown error")")
+                DispatchQueue.main.async { MainActor.assumeIsolated { self?.onFailed() } }
             })
+    }
+
+    // A missing or unplayable file fails the looper; a ready one with no item has lost its items.
+    var failed: Bool {
+        looper.status == .failed || (looper.status == .ready && player.currentItem == nil)
     }
 
     func show() {

@@ -256,6 +256,7 @@ private struct StatusLine: View {
         for error in model.loadErrors where error.warning {
             parts.append((s.pictureUnconfirmed(cue(error.url)), Palette.warn))
         }
+        if !model.slotsWithoutKeys.isEmpty { parts.append((s.slotsWithoutKeys(model.slotsWithoutKeys), Palette.warn)) }
         let warnings = model.findings.filter { $0.severity == .warn }.count
         if warnings > 0 { parts.append((s.warnings(warnings), Palette.warn)) }
         if model.output == .missing { parts.append((s.noProjectorStatus, Palette.live)) }

@@ -78,6 +78,60 @@ public struct SlotSet: Codable, Equatable, Sendable {
         logos = try container.decodeIfPresent([Logo?].self, forKey: .logos) ?? []
         slots = try container.decodeIfPresent([SlotEntry?].self, forKey: .slots) ?? []
     }
+
+    public static let fileName = "slots.json"
+
+    // Missing is the empty set; a broken file is the empty set plus the reason, and stays on disk untouched.
+    public static func load(from url: URL) -> (set: SlotSet, error: ShowError?) {
+        guard FileManager.default.fileExists(atPath: url.path) else { return (SlotSet(), nil) }
+        do {
+            return (try ShowLoader.decode(SlotSet.self, from: url), nil)
+        } catch {
+            return (SlotSet(), error as? ShowError ?? .fileMissing(url))
+        }
+    }
+
+    // Timestamped, so a later move-aside never replaces an earlier broken file.
+    public static func brokenURL(for url: URL, at date: Date) -> URL {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let name = url.deletingPathExtension().lastPathComponent
+        return url.deletingLastPathComponent().appendingPathComponent(
+            "\(name).broken-\(formatter.string(from: date)).json")
+    }
+
+    // Atomic; overBroken first moves the broken file aside (returned), so a save never loses the owner's text.
+    @discardableResult
+    public func save(to url: URL, overBroken: Bool, now: Date = Date()) throws -> URL? {
+        let files = FileManager.default
+        try files.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        var aside: URL?
+        if overBroken, files.fileExists(atPath: url.path) {
+            let target = Self.brokenURL(for: url, at: now)
+            // moveItem refuses an existing target, so nothing already set aside is ever replaced.
+            try files.moveItem(at: url, to: target)
+            aside = target
+        }
+        try ShowLoader.write(self, to: url)
+        return aside
+    }
+
+    // The default set has nothing under it, so .useDefault and .empty both clear the picture.
+    public mutating func setPicture(_ number: Int, _ change: SlotOverride) {
+        guard (1...pictureCount).contains(number) else { return }
+        let entry: SlotEntry? = if case .own(let own) = change, !own.file.isEmpty { own } else { nil }
+        if number <= logoCount {
+            while logos.count < number { logos.append(nil) }
+            logos[number - 1] = entry?.logo
+        } else {
+            let index = number - logoCount - 1
+            while slots.count <= index { slots.append(nil) }
+            slots[index] = entry
+        }
+        while let last = logos.last, last == nil { logos.removeLast() }
+        while let last = slots.last, last == nil { slots.removeLast() }
+    }
 }
 
 public enum PictureSource: Equatable, Sendable {
@@ -122,6 +176,12 @@ public enum Pictures {
             }
         }
         return logos + slots
+    }
+
+    // The same in both languages, so preflight details can carry it.
+    public static func slotName(_ picture: Picture?, number: Int) -> String {
+        let name = picture?.name ?? ""
+        return name.isEmpty ? "Slot \(number - logoCount)" : name
     }
 
     private static func entry<T>(_ list: [T?], _ index: Int) -> T? {

@@ -202,7 +202,7 @@ public enum ShowLoader {
         var format: Int
     }
 
-    private static func decode<T: Decodable>(_ type: T.Type, from url: URL) throws -> T {
+    static func decode<T: Decodable>(_ type: T.Type, from url: URL) throws -> T {
         guard let data = try? Data(contentsOf: url) else { throw ShowError.fileMissing(url) }
         let decoder = JSONDecoder()
         do {
@@ -217,7 +217,7 @@ public enum ShowLoader {
         }
     }
 
-    private static func write<T: Encodable>(_ value: T, to url: URL) throws {
+    static func write<T: Encodable>(_ value: T, to url: URL) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         var data = try encoder.encode(value)

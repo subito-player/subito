@@ -117,7 +117,19 @@ private func probe(_ change: (inout ClipProbe) -> Void) -> ClipProbe {
                 Finding(severity: .warn, cueIndex: 2, kind: .logoNumber, detail: "3")
             ])
         #expect(Preflight.evaluate(cues: cues, probes: [:], logos: []).map(\.cueIndex) == [0, 1, 2])
-        #expect(Preflight.evaluate(cues: cues, probes: [:], logos: two + [loop("c.mp4")]) == [])
+    }
+
+    // A logo cue never shows a slot, so picture 3 having a file does not make "logo": 3 valid.
+    @Test func logoCueOnASlotNumberWarnsEvenWhenTheSlotHasAFile() {
+        let cues = [0, 3, 8, 9].map { Cue(kind: .logo($0), movieIndex: nil) }
+        let eight = Array(repeating: Optional(image("a.png")), count: pictureCount)
+        #expect(
+            Preflight.evaluate(cues: cues, probes: [:], logos: eight) == [
+                Finding(severity: .warn, cueIndex: 0, kind: .logoNumber, detail: "0"),
+                Finding(severity: .warn, cueIndex: 1, kind: .logoNumber, detail: "3"),
+                Finding(severity: .warn, cueIndex: 2, kind: .logoNumber, detail: "8"),
+                Finding(severity: .warn, cueIndex: 3, kind: .logoNumber, detail: "9"),
+            ])
     }
 
     @Test func logoCueOnANumberWithNoFileWarns() {
@@ -137,31 +149,36 @@ private func loop(_ name: String) -> LogoFile {
     .loop(URL(fileURLWithPath: "/show/logos/\(name)"))
 }
 
-@Suite struct LogoPreflightTests {
-    @Test func aLogoThatDidNotLoadWarnsWithItsNumberAndFileName() {
-        let logos = ["a.png", "b.png", "c.png"].map(image)
-        let urls = logos.map(\.url)
-        #expect(Preflight.evaluate(logos: logos, images: Set(urls), probes: [:]) == [])
+private func picture(_ file: LogoFile, _ name: String = "") -> Picture {
+    Picture(name: name, file: file, source: .defaultSet)
+}
+
+@Suite struct PicturePreflightTests {
+    @Test func aPictureThatDidNotLoadWarnsWithItsNumberOrSlotNameAndFileName() {
+        let files = ["a.png", "b.png", "c.png", "d.png"].map(image)
+        let pictures = [picture(files[0]), picture(files[1]), picture(files[2], "Sponsor"), picture(files[3])]
+        #expect(Preflight.evaluate(pictures: pictures, images: Set(files.map(\.url)), probes: [:]) == [])
         #expect(
-            Preflight.evaluate(logos: logos, images: [urls[0]], probes: [:]) == [
+            Preflight.evaluate(pictures: pictures, images: [files[0].url], probes: [:]) == [
                 Finding(severity: .warn, kind: .logo, detail: "2 · b.png"),
-                Finding(severity: .warn, kind: .logo, detail: "3 · c.png"),
+                Finding(severity: .warn, kind: .slot, detail: "Sponsor · c.png"),
+                Finding(severity: .warn, kind: .slot, detail: "Slot 2 · d.png"),
             ])
     }
 
     @Test func aBrokenLoopWarnsLikeAMissingImageButNeverBlocks() {
-        let logos = [loop("a.mp4"), loop("b.mp4"), loop("c.mp4"), loop("d.mp4")]
+        let loops = [loop("a.mp4"), loop("b.mp4"), loop("c.mp4"), loop("d.mp4")]
         let probes = [
-            logos[0].url: ownExport,
-            logos[1].url: ClipProbe(),
-            logos[2].url: probe { $0.playable = false },
-            logos[3].url: probe { $0.hasVideo = false },
+            loops[0].url: ownExport,
+            loops[1].url: ClipProbe(),
+            loops[2].url: probe { $0.playable = false },
+            loops[3].url: probe { $0.hasVideo = false },
         ]
         #expect(
-            Preflight.evaluate(logos: logos, images: [], probes: probes) == [
+            Preflight.evaluate(pictures: loops.map { picture($0) }, images: [], probes: probes) == [
                 Finding(severity: .warn, kind: .logo, detail: "2 · b.mp4"),
-                Finding(severity: .warn, kind: .logo, detail: "3 · c.mp4"),
-                Finding(severity: .warn, kind: .logo, detail: "4 · d.mp4"),
+                Finding(severity: .warn, kind: .slot, detail: "Slot 1 · c.mp4"),
+                Finding(severity: .warn, kind: .slot, detail: "Slot 2 · d.mp4"),
             ])
     }
 
@@ -171,12 +188,32 @@ private func loop(_ name: String) -> LogoFile {
             $0.fps = 30
             $0.hasAudio = false
         }
-        let logos = [loop("a.mp4"), loop("b.mp4")]
-        #expect(Preflight.evaluate(logos: logos, images: [], probes: [logos[0].url: odd]) == [])
+        let loops = [loop("a.mp4"), loop("b.mp4")]
+        #expect(Preflight.evaluate(pictures: loops.map { picture($0) }, images: [], probes: [loops[0].url: odd]) == [])
     }
 
     @Test func aNumberWithNoFileIsLeftToTheLogoCues() {
-        #expect(Preflight.evaluate(logos: [nil, image("b.png")], images: [image("b.png").url], probes: [:]) == [])
+        #expect(
+            Preflight.evaluate(pictures: [nil, picture(image("b.png"))], images: [image("b.png").url], probes: [:])
+                == [])
+    }
+
+    // The app gives a missing loop file its empty probe at once; a loop whose player failed is out despite its probe.
+    @Test func onlyPicturesThatLoadedAreShowable() {
+        let pictures: [Picture?] = [
+            picture(image("a.png")), nil, picture(image("gone.png")), picture(loop("ok.mp4")), picture(loop("bad.mkv")),
+            picture(loop("probing.mp4")), picture(loop("missing.mp4")), picture(loop("dead.mp4")),
+        ]
+        let probes = [
+            loop("ok.mp4").url: ownExport, loop("bad.mkv").url: probe { $0.playable = false },
+            loop("missing.mp4").url: ClipProbe(), loop("dead.mp4").url: ownExport,
+        ]
+        let failed: Set = [loop("dead.mp4").url]
+        let images: Set = [image("a.png").url]
+        #expect(Preflight.showable(pictures, images: images, probes: probes, failedLoops: failed) == [1, 4, 6])
+        #expect(
+            Preflight.evaluate(pictures: pictures, images: images, probes: probes, failedLoops: failed).map(\.detail)
+                == ["Slot 1 · gone.png", "Slot 3 · bad.mkv", "Slot 5 · missing.mp4", "Slot 6 · dead.mp4"])
     }
 }
 

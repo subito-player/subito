@@ -19,6 +19,8 @@ struct Strings {
     let lang: Lang
     // Texts naming a key read it from here, so a remapped key is named right.
     var keyMap = KeyMap.standard
+    // Slot names for the last key, the cover tag and notices.
+    var pictures: [CueCore.Picture?] = []
 
     private func pick(_ hu: String, _ en: String) -> String {
         lang == .hu ? hu : en
@@ -151,6 +153,10 @@ struct Strings {
             pick("Nyomd meg újra a Cmd+Q-t a kilépéshez (3 mp)", "Press Cmd+Q again to quit (3 s)")
         case .confirmQuitClick:
             pick("Koncert: a kilépéshez kattints ide (5 mp)", "Concert: click here to quit (5 s)")
+        case .pictureEmpty(let number):
+            pick("\(picture(number)) üres", "\(picture(number)) is empty")
+        case .pictureCannotLoad(let number, let file):
+            pick("\(picture(number)) nem tölthető be: \(file)", "\(picture(number)) cannot be loaded: \(file)")
         }
     }
 
@@ -184,6 +190,19 @@ struct Strings {
     var logo: String { pick("Logó", "Logo") }
     var breakTitle: String { pick("Szünet", "Intermission") }
     var minutes: String { pick("perc", "min") }
+
+    // Logo 1 and 2, or a slot by its name.
+    func picture(_ number: Int) -> String {
+        guard number > logoCount else { return "\(logo) \(number)" }
+        return Pictures.slotName(pictures.indices.contains(number - 1) ? pictures[number - 1] : nil, number: number)
+    }
+
+    func cover(_ cover: Cover) -> String {
+        switch cover {
+        case .black: black
+        case .logo(let number): picture(number)
+        }
+    }
 
     func number(_ cue: Cue) -> String {
         guard case .clip(let clip, _) = cue.kind, let number = clip.resolvedNumber else { return "" }
@@ -226,11 +245,6 @@ struct Strings {
     var breakMinutes: String { pick("Perc", "Minutes") }
     var countdown: String { pick("Visszaszámlálás", "Countdown") }
     var logoNumber: String { pick("Logó", "Logo") }
-    var noLogos: String {
-        pick(
-            "Ennek a műsornak nincs logója (a koncert logos listája üres)",
-            "This show has no logos (the concert's logo list is empty)")
-    }
     var nothingToSet: String { pick("Nincs mit beállítani", "Nothing to set") }
     var logoFile: String { pick("Kép vagy videó…", "Image or video…") }
     var noLogoFile: String { pick("nincs fájl", "no file") }
@@ -344,7 +358,26 @@ struct Strings {
                 "The key map is broken, the default keys work: \(keyMapError(error))")
         case .save(let file, let reason):
             pick("Nem sikerült menteni: \(file): \(reason)", "Cannot save \(file): \(reason)")
+        case .defaultSet(let error):
+            pick(
+                "Az alapkészlet (logók és slotok) üres: \(showError(error))",
+                "The default set (logos and slots) is empty: \(showError(error))")
         }
+    }
+
+    func slotsWithoutKeys(_ slots: [Int]) -> String {
+        let list = Self.numbers(slots)
+        return pick(
+            "Ezeknek a slotoknak nincs billentyűje a keymap.json-ban: \(list)",
+            slots.count == 1 ? "Slot \(list) has no key in keymap.json" : "Slots \(list) have no keys in keymap.json")
+    }
+
+    // A run of numbers as "1-6", anything else as "2, 5".
+    private static func numbers(_ list: [Int]) -> String {
+        guard let first = list.first, let last = list.last, list.count > 1, last - first == list.count - 1 else {
+            return list.map(String.init).joined(separator: ", ")
+        }
+        return "\(first)-\(last)"
     }
 
     func showError(_ error: ShowError) -> String {
@@ -468,12 +501,17 @@ struct Strings {
             pick("A hossza eltér a tervezett vég + ráhagyás összegétől", "Length differs from planned end + tail")
         case (.plannedEnd, _): pick("A tervezett vég a klip vége után van", "Planned end is after the clip ends")
         case (.logo, _):
-            pick("A logó nem tölthető be, helyette fekete lesz", "Logo cannot be loaded, shows black instead")
+            pick(
+                "A logó nem tölthető be: a gombja nem csinál semmit, logó elemként fekete lesz",
+                "Logo cannot be loaded: its key does nothing, a logo cue shows black")
+        case (.slot, _):
+            pick("A slot nem tölthető be, a gombja nem csinál semmit", "Slot cannot be loaded, its key does nothing")
         case (.logoNumber, _):
             pick(
                 "Nincs ilyen sorszámú logó a műsorban, helyette fekete lesz",
                 "The show has no logo with this number, shows black instead")
         case (.emptyShow, _): pick("A műsor üres", "The show has no cues")
+        case (.defaultSet, _): pick("Az alapkészlet (slots.json) hibás", "The default set (slots.json) is broken")
         case (.projector, .ok): pick("Projektor csatlakoztatva", "Projector connected")
         case (.projector, _): pick("Nincs projektor", "No projector")
         case (.mirrored, _): mirroring
@@ -547,8 +585,7 @@ struct Strings {
         switch command {
         case .go: go
         case .playPause: pick("Lejátszás/megállítás", "Play/pause")
-        case .toggleCover(.black): black
-        case .toggleCover(.logo(let number)): "\(logo) \(number)"
+        case .toggleCover(let cover): self.cover(cover)
         case .seekLive(let delta): pick("Ugrás \(signed(delta)) mp", "Seek \(signed(delta)) s")
         case .restartLive: restart
         case .parkArmed(let delta): pick("Következő \(signed(delta)) mp", "Next \(signed(delta)) s")

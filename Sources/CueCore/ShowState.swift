@@ -54,6 +54,9 @@ public enum Notice: Equatable, Sendable {
     case confirmUnlock
     case confirmQuit
     case confirmQuitClick
+    // A cover press the app refused (`refusesCover`), by picture number.
+    case pictureEmpty(Int)
+    case pictureCannotLoad(Int, file: String)
 }
 
 public enum Effect: Equatable, Sendable {
@@ -84,6 +87,12 @@ public struct ShowState: Equatable, Sendable {
         }
     }
 
+    // A stray press must never black out the show: a cover comes on only over a picture that loaded; off always works.
+    public static func refusesCover(_ command: Command, cover: Cover?, showable: Set<Int>) -> Bool {
+        guard case .toggleCover(.logo(let number)) = command else { return false }
+        return cover != .logo(number) && !showable.contains(number)
+    }
+
     public private(set) var cues: [Cue]
     public private(set) var liveIndex: Int?
     public private(set) var armedIndex: Int?
@@ -102,6 +111,12 @@ public struct ShowState: Equatable, Sendable {
 
     public init(cues: [Cue] = []) {
         self.cues = cues
+    }
+
+    // A press the app refuses before `handle` is still a press, so it cancels a pending confirmation the same way.
+    public mutating func cancelPending() {
+        pending = nil
+        pendingUntil = nil
     }
 
     public func activePending(at now: Date) -> Notice? {
