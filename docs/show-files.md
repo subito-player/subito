@@ -73,7 +73,7 @@ file, or the file length differs from `planned_end_s + tail_s` by more than 1.05
 | Key | Required | Meaning |
 |---|---|---|
 | `format`, `title` | yes | As in a movie. |
-| `logos` | no | Logo 1 (L key) and logo 2 (Shift+L). Image path, or `{ "loop": "file.mp4" }` for a muted looping video. `""` = no file (shows black). |
+| `logos` | no | Logo 1 (L key) and logo 2 (Shift+L). Image path, or `{ "loop": "file.mp4" }` for a muted looping video. `""` = no file (shows black). A GIF shows its first frame only: convert it to a looping MP4. |
 | `items` | no | Allowed types: `movie`, `black`, `break`, `logo`. No `clip` in a concert: put clips in a movie. |
 
 Other item types:

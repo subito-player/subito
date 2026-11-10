@@ -54,6 +54,13 @@ nix shell nixpkgs#ffmpeg --command ffmpeg -i in.mkv -c copy -tag:v hvc1 out.mp4 
 nix shell nixpkgs#ffmpeg --command ffmpeg -i in.avi -c:v h264_videotoolbox -b:v 20M -c:a aac out.mp4   # anything else
 ```
 
+Logos: PNG or JPG, or a short MP4 that loops. An animated GIF shows only its first frame; convert it to MP4 and pick
+that instead:
+
+```sh
+nix shell nixpkgs#ffmpeg --command ffmpeg -i logo.gif -pix_fmt yuv420p -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" -c:v libx264 -crf 18 -an logo.mp4
+```
+
 ## First open
 
 A downloaded (quarantined) build opens via System Settings > Privacy & Security > Open Anyway, or

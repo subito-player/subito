@@ -251,6 +251,25 @@ extension ShowDocument {
         #expect(!gala().isLocked(place(movieA, 0), live: 99))
     }
 
+    @Test func aConcertItemDroppedInsideAMovieLandsOnThatMoviesEntry() {
+        let document = gala(twiceA: true)
+        let logo = place(concertURL, 4)
+        let firstA = document.rows.first { $0.place == place(movieA, 2) }!
+        let secondA = document.rows.last { $0.place == place(movieA, 2) }!
+        #expect(document.dropPlace(moving: logo, onto: firstA) == place(concertURL, 1))
+        #expect(document.dropPlace(moving: logo, onto: secondA) == place(concertURL, 5))
+        let blackRow = document.rows.first { $0.place == place(concertURL, 0) }!
+        #expect(document.dropPlace(moving: logo, onto: blackRow) == place(concertURL, 0))
+    }
+
+    @Test func aClipIsNeverDroppedOutOfItsMovie() {
+        let document = gala()
+        let blackRow = document.rows.first { $0.place == place(concertURL, 0) }!
+        let clipOfB = document.rows.first { $0.place == place(movieB, 0) }!
+        #expect(document.dropPlace(moving: place(movieA, 0), onto: blackRow) == nil)
+        #expect(document.dropPlace(moving: place(movieA, 0), onto: clipOfB) == nil)
+    }
+
     @Test func outOfRangeIsRefused() {
         let document = gala()
         #expect(document.apply(.delete(place(movieB, 1)), live: nil).refusal == .noSuchItem)
