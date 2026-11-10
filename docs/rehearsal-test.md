@@ -27,6 +27,8 @@ time. Note every surprise in the log at the bottom; it drives v0.2.
       clip keeps running underneath; numpad 2 while slot 1 is up cuts straight across. Numpad 5 (empty): nothing
       changes on the projector, the status line says why. `?` opens the key list and the keys still drive the show.
       Concert mode, locked: click Slot 1 fades it in; no Edit button.
+   9. Logo names: Szerkesztés, click Logó 1, Név "Blades of Chaos": the button, a logo item in the list and the TAKARVA
+      tag read it, the projector shows no name. Clear the name: "Logó 1" again.
 4. Load the real show (Open in the top bar, then the clip folder or the concert file). Preflight line is green;
    click it for the list, tick the manual checks.
 5. Editor (rehearsal mode): Szerkesztés, check the clip order, set planned end and tail on one clip (markers move),

@@ -77,7 +77,7 @@ struct Previews: View {
         if let index = state.liveIndex, state.cues.indices.contains(index) { return s.title(state.cues[index]) }
         switch state.base {
         case .black: return s.black
-        case .logo(let number): return "\(s.logo) \(number)"
+        case .logo(let number): return s.logoCue(number)
         case .breakScreen: return model.engine.breakTitle
         case .clip(let slot):
             guard let url = model.engine.url(slot) else { return "" }

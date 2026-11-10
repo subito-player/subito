@@ -105,13 +105,49 @@ func jsonObject(_ data: Data) throws -> NSDictionary {
         }
     }
 
-    @Test func logoEntriesAreImagePathsOrReservedLoops() throws {
-        let json = #"{ "format": 1, "title": "T", "logos": ["a.png", { "loop": "b.mp4" }], "items": [] }"#
-        let concert = try JSONDecoder().decode(Concert.self, from: Data(json.utf8))
-        #expect(concert.logos == [.image("a.png"), .loop("b.mp4")])
+    // As the app saved it before logos had names; a loop keeps its form, whatever the file's extension.
+    @Test func oldLogoFormsLoadUnnamedAndSaveBackByteForByte() throws {
+        let old = """
+            {
+              "format" : 1,
+              "items" : [
+                {
+                  "type" : "black"
+                }
+              ],
+              "logos" : [
+                null,
+                "",
+                "logos/a.png",
+                {
+                  "loop" : "logos/b.gif"
+                }
+              ],
+              "title" : "Gala"
+            }
+            """ + "\n"
+        try withTempDir { dir in
+            let url = dir.appendingPathComponent("a.concert.json")
+            try write(old, to: url)
+            let concert = try ShowLoader.loadConcert(at: url).concert
+            #expect(concert.logos == [nil, .image(""), .image("logos/a.png"), .loop("logos/b.gif")])
+            try ShowLoader.save(concert, to: url)
+            #expect(try String(contentsOf: url, encoding: .utf8) == old)
+        }
+    }
 
-        let encoded = try JSONEncoder().encode(concert)
-        #expect(try jsonObject(encoded) == jsonObject(Data(json.utf8)))
+    @Test func aNamedLogoIsASlotEntryLoopingByItsExtension() throws {
+        let json = #"""
+            { "format": 1, "title": "T", "items": [],
+              "logos": [{ "name": "Blades of Chaos", "file": "logos/b.MP4" },
+                        { "name": "Marika néni kávézója", "file": "logos/m.png" }] }
+            """#
+        let concert = try JSONDecoder().decode(Concert.self, from: Data(json.utf8))
+        #expect(
+            concert.logos == [
+                .loop("logos/b.MP4", name: "Blades of Chaos"), .image("logos/m.png", name: "Marika néni kávézója"),
+            ])
+        #expect(try jsonObject(JSONEncoder().encode(concert)) == jsonObject(Data(json.utf8)))
     }
 
     @Test func anOldConcertFileSavesBackWithoutASlotsKey() throws {

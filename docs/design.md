@@ -51,7 +51,8 @@ also generate movie files.
   rest of the filename ("the_greatest_show" -> "The Greatest Show"). No `planned_end_s` = no markers.
 - Concert refers to movies by file, so fixing a movie fixes every concert using it.
 - Logo entries are an image path or `{ "loop": "file.mp4" }`: a muted video that loops seamlessly and restarts from
-  frame 0 each time it is shown. `null` or left out = the default set's logo, `""` = no logo in this concert
+  frame 0 each time it is shown. A named logo is `{ "name": ..., "file": ... }` like a slot; the name replaces
+  "Logo 1" on the control window, never on the projector. `null` or left out = the default set's logo, `""` = no logo in this concert
   (`slots.md`). A logo cue is 1 or 2: one with no file, or any other number, shows black and preflight warns. Logo 1
   and 2 are picked like slots, in the picture inspector (editor below).
 - "Open folder" builds a movie from `NN_name.mp4` (also `.mov`, `.m4v`) files and saves `<folder>.movie.json` next to
@@ -120,7 +121,7 @@ templates, duplicate.
 Picture inspector (edit mode, click a logo or slot; it replaces the row selection, and the status line says a click
 there selects): "Saved for" first = where the next change goes: This concert only (where it starts, on every
 selection, with a concert open) or Every concert (the default set; the only choice with a single movie open), then
-Name (slots only), File (Choose...: an image, or an MP4, MOV or M4V that loops), its key (read-only), Back to default
+Name, File (Choose...: an image, or an MP4, MOV or M4V that loops), its key (read-only), Back to default
 (the concert's own picture or ""), Empty (press twice). A new name or file keeps the other field of the picture shown.
 Every concert includes the open one: a change or Empty there also drops this concert's own setting, so it shows at
 once.

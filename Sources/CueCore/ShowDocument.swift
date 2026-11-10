@@ -144,7 +144,7 @@ public struct ShowDocument: Equatable, Sendable {
         (concert?.logos ?? []).map { logo in
             guard let logo, !logo.path.isEmpty else { return nil }
             let file = ShowLoader.resolve(logo.path, relativeTo: url)
-            return if case .loop = logo { .loop(file) } else { .image(file) }
+            return logo.loops ? .loop(file) : .image(file)
         }
     }
 

@@ -75,7 +75,7 @@ file, or the file length differs from `planned_end_s + tail_s` by more than 1.05
 | Key | Required | Meaning |
 |---|---|---|
 | `format`, `title` | yes | As in a movie. |
-| `logos` | no | Logo 1 (L key) and logo 2 (Shift+L) over the default set. Image path, or `{ "loop": "file.mp4" }` for a muted looping video. `null` or left out = the default set's logo, `""` = no logo in this concert. A GIF shows its first frame only: convert it to a looping MP4. |
+| `logos` | no | Logo 1 (L key) and logo 2 (Shift+L) over the default set. Image path, or `{ "loop": "file.mp4" }` for a muted looping video, or `{ "name": ..., "file": ... }` for a named logo (like a slot: MP4, MOV, M4V loop muted, anything else is an image). The name shows on the control window (button, cue list, notices) instead of "Logo 1", never on the projector; the editor writes an unnamed logo in the first two forms. `null` or left out = the default set's logo, `""` = no logo in this concert. A GIF shows its first frame only: convert it to a looping MP4. |
 | `slots` | no | Slots 1 to 6 (keypad 1 to 6) over the default set: `null` or left out = the default set's slot, `""` = empty in this concert, `{ "name": ..., "file": ... }` = this concert's own (MP4, MOV, M4V loop muted, anything else is an image). Only what the concert changes is stored; the editor writes no `slots` key when nothing is changed. |
 | `items` | no | Allowed types: `movie`, `black`, `break`, `logo`. No `clip` in a concert: put clips in a movie. |
 
@@ -91,15 +91,16 @@ Other item types:
 ## Default set: `slots.json`
 
 `~/Library/Application Support/<bundle id>/slots.json`, one per Mac: the Logo 1, Logo 2 and slots 1 to 6 every
-concert starts from, and what a single movie shows. Absolute paths. `null` or left out = empty. The app writes it
-when a picture is changed for every concert, reading the file again first, so a hand edit made while the app runs is
-kept. A broken file is reported in red and counts as empty; the app never writes over it: the first change from the
-app moves it aside to `slots.broken-YYYYMMDD-HHMMSS.json` (earlier ones are never replaced).
+concert starts from, and what a single movie shows. Absolute paths. Logo and slot entries take the same forms as in a
+concert; `null` or left out = empty. The app writes it when a picture is changed for every concert, reading the file
+again first, so a hand edit made while the app runs is kept. A broken file is reported in red and counts as empty; the
+app never writes over it: the first change from the app moves it aside to `slots.broken-YYYYMMDD-HHMMSS.json`
+(earlier ones are never replaced).
 
 ```json
 {
   "format": 1,
-  "logos": ["/Users/me/Show/orchestra.png", null],
+  "logos": ["/Users/me/Show/orchestra.png", { "name": "Marika néni kávézója", "file": "/Users/me/Show/cafe.png" }],
   "slots": [{ "name": "Thank you", "file": "/Users/me/Show/thanks.mp4" }, null, { "name": "Interval", "file": "/Users/me/Show/interval.png" }]
 }
 ```

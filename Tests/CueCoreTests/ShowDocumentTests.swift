@@ -430,8 +430,8 @@ extension ShowDocument {
         #expect(set.changed == [concertURL])
         #expect(set.indexMap == Array(0..<7))
         #expect(set.document.cues == document.cues)
-        let image = try set.document.apply(.setPicture(2, own("/show/logos/e.PNG", "ignored")), live: nil).edited
-        #expect(concert(image).logos == [.loop("logos/intro.mp4"), .image("logos/e.PNG")])
+        let image = try set.document.apply(.setPicture(2, own("/show/logos/e.PNG", "Event")), live: nil).edited
+        #expect(concert(image).logos == [.loop("logos/intro.mp4"), .image("logos/e.PNG", name: "Event")])
         let emptied = try image.document.apply(.setPicture(2, .empty), live: nil).edited
         #expect(concert(emptied).logos == [.loop("logos/intro.mp4"), .image("")])
         #expect(emptied.document.logos == [.loop(URL(fileURLWithPath: "/show/logos/intro.mp4")), nil])

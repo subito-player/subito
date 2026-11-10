@@ -19,7 +19,7 @@ struct Strings {
     let lang: Lang
     // Texts naming a key read it from here, so a remapped key is named right.
     var keyMap = KeyMap.standard
-    // Slot names for the last key, the cover tag and notices.
+    // Logo and slot names for the last key, the cover tag, the cue list and notices.
     var pictures: [CueCore.Picture?] = []
 
     private func pick(_ hu: String, _ en: String) -> String {
@@ -191,10 +191,15 @@ struct Strings {
     var breakTitle: String { pick("Szünet", "Intermission") }
     var minutes: String { pick("perc", "min") }
 
-    // Logo 1 and 2, or a slot by its name.
+    // A logo or slot by its name, else "Logó 1", "Slot 3".
     func picture(_ number: Int) -> String {
-        guard number > logoCount else { return "\(logo) \(number)" }
-        return Pictures.slotName(pictures.indices.contains(number - 1) ? pictures[number - 1] : nil, number: number)
+        let name = pictures.indices.contains(number - 1) ? pictures[number - 1]?.name ?? "" : ""
+        return name.isEmpty ? pictureTitle(number) : name
+    }
+
+    // Any other number is no picture: it shows black, and preflight warns.
+    func logoCue(_ number: Int) -> String {
+        (1...logoCount).contains(number) ? picture(number) : "\(logo) \(number)"
     }
 
     func cover(_ cover: Cover) -> String {
@@ -214,7 +219,7 @@ struct Strings {
         case .clip(let clip, _): clip.resolvedTitle
         case .black: black
         case .breakScreen(let item): "\(item.text ?? breakTitle) \(String(format: "%g", item.minutes)) \(minutes)"
-        case .logo(let number): "\(logo) \(number)"
+        case .logo(let number): logoCue(number)
         }
     }
 

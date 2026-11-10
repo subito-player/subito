@@ -6,7 +6,7 @@ import Testing
 private let concertURL = URL(fileURLWithPath: "/show/gala.concert.json")
 
 private let defaults = SlotSet(
-    logos: [.image("/set/orchestra.png"), .loop("/set/event.mp4")],
+    logos: [.image("/set/orchestra.png"), .loop("/set/event.mp4", name: "Event")],
     slots: [
         SlotEntry(name: "Sponsor", file: "/set/sponsor.png"), SlotEntry(name: "Thanks", file: "/set/thanks.MOV"), nil,
         SlotEntry(name: "Interval", file: "/set/interval.m4v"), SlotEntry(name: "Gone", file: ""),
@@ -25,8 +25,9 @@ private func merge(_ concert: Concert?) -> [Picture?] {
 }
 
 @Suite struct PictureMergeTests {
-    private let defaultLogo1 = Picture(name: "Logo 1", file: image("/set/orchestra.png"), source: .defaultSet)
-    private let defaultLogo2 = Picture(name: "Logo 2", file: loop("/set/event.mp4"), source: .defaultSet)
+    // An unnamed logo stays unnamed: "Logó 1" is the app's fallback, never stored.
+    private let defaultLogo1 = Picture(name: "", file: image("/set/orchestra.png"), source: .defaultSet)
+    private let defaultLogo2 = Picture(name: "Event", file: loop("/set/event.mp4"), source: .defaultSet)
     private let defaultSlot1 = Picture(name: "Sponsor", file: image("/set/sponsor.png"), source: .defaultSet)
     private let defaultSlot2 = Picture(name: "Thanks", file: loop("/set/thanks.MOV"), source: .defaultSet)
     private let defaultSlot4 = Picture(name: "Interval", file: loop("/set/interval.m4v"), source: .defaultSet)
@@ -45,13 +46,13 @@ private func merge(_ concert: Concert?) -> [Picture?] {
 
     @Test func aConcertsOwnPictureReplacesTheDefaultResolvedAgainstTheConcert() {
         let concert = Concert(
-            title: "T", logos: [.image("logos/own.png")],
+            title: "T", logos: [.image("logos/own.png", name: "Blades of Chaos")],
             slots: [
                 .own(SlotEntry(name: "Sponsor 2026", file: "slots/sponsor.mp4")), .useDefault,
                 .own(SlotEntry(name: "Encore", file: "/Volumes/Stage/encore.png")),
             ])
         let pictures = merge(concert)
-        #expect(pictures[0] == Picture(name: "Logo 1", file: image("/show/logos/own.png"), source: .concert))
+        #expect(pictures[0] == Picture(name: "Blades of Chaos", file: image("/show/logos/own.png"), source: .concert))
         #expect(pictures[2] == Picture(name: "Sponsor 2026", file: loop("/show/slots/sponsor.mp4"), source: .concert))
         #expect(pictures[4] == Picture(name: "Encore", file: image("/Volumes/Stage/encore.png"), source: .concert))
         #expect(pictures[1] == defaultLogo2)
@@ -75,7 +76,7 @@ private func merge(_ concert: Concert?) -> [Picture?] {
         let json = #"{ "format": 1, "title": "Gala", "logos": ["logos/a.png", ""], "items": [] }"#
         let concert = try JSONDecoder().decode(Concert.self, from: Data(json.utf8))
         let pictures = merge(concert)
-        #expect(pictures[0] == Picture(name: "Logo 1", file: image("/show/logos/a.png"), source: .concert))
+        #expect(pictures[0] == Picture(name: "", file: image("/show/logos/a.png"), source: .concert))
         #expect(pictures[1] == nil)
         #expect(Array(pictures[2...]) == Array(merge(nil)[2...]))
     }
@@ -95,6 +96,46 @@ private func merge(_ concert: Concert?) -> [Picture?] {
                     slots: [nil, SlotEntry(name: "Thanks", file: "/set/thanks.mov")]))
         #expect(try JSONDecoder().decode(SlotSet.self, from: JSONEncoder().encode(set)) == set)
         #expect(try JSONDecoder().decode(SlotSet.self, from: Data(#"{ "format": 1 }"#.utf8)) == SlotSet())
+    }
+
+    // As the app saved it before logos had names.
+    @Test func oldLogoFormsLoadUnnamedAndSaveBackByteForByte() throws {
+        let old = """
+            {
+              "format" : 1,
+              "logos" : [
+                null,
+                "",
+                "/set/a.png",
+                {
+                  "loop" : "/set/b.gif"
+                }
+              ],
+              "slots" : [
+                null,
+                {
+                  "file" : "/set/thanks.mov",
+                  "name" : "Thanks"
+                }
+              ]
+            }
+            """ + "\n"
+        try withTempDir { dir in
+            let url = dir.appendingPathComponent(SlotSet.fileName)
+            try write(old, to: url)
+            let (set, error) = SlotSet.load(from: url)
+            #expect(error == nil)
+            #expect(set.logos == [nil, .image(""), .image("/set/a.png"), .loop("/set/b.gif")])
+            try set.save(to: url, overBroken: false)
+            #expect(try String(contentsOf: url, encoding: .utf8) == old)
+        }
+    }
+
+    @Test func aNamedDefaultLogoSavesAsNameAndFile() throws {
+        let json = #"{ "format": 1, "logos": [null, { "name": "Event", "file": "/set/event.mov" }], "slots": [] }"#
+        let set = try JSONDecoder().decode(SlotSet.self, from: Data(json.utf8))
+        #expect(set.logos == [nil, .loop("/set/event.mov", name: "Event")])
+        #expect(try jsonObject(JSONEncoder().encode(set)) == jsonObject(Data(json.utf8)))
     }
 }
 
@@ -163,12 +204,12 @@ private func merge(_ concert: Concert?) -> [Picture?] {
     // Clearing a picture leaves no null tail, so an emptied set saves as a bare format.
     @Test func settingADefaultPictureStoresItAndClearingRemovesIt() {
         var set = SlotSet()
-        set.setPicture(2, .own(SlotEntry(name: "", file: "/set/event.mov")))
+        set.setPicture(2, .own(SlotEntry(name: "Event", file: "/set/event.mov")))
         set.setPicture(4, .own(SlotEntry(name: "Thanks", file: "/set/thanks.png")))
         #expect(
             set
                 == SlotSet(
-                    logos: [nil, .loop("/set/event.mov")],
+                    logos: [nil, .loop("/set/event.mov", name: "Event")],
                     slots: [nil, SlotEntry(name: "Thanks", file: "/set/thanks.png")]))
         set.setPicture(4, .empty)
         set.setPicture(2, .useDefault)
@@ -255,11 +296,18 @@ private func shown(_ number: Int, _ concert: Concert?) -> Picture? {
         #expect(write(.empty, 6, .everyConcert, gala) == PictureWrite(defaultSet: .empty))
     }
 
-    // Logos have no name: "Logo 1" on the button comes from the merge, never from the file.
-    @Test func aLogoIsWrittenWithoutAName() {
+    // Named like a slot; an unnamed logo's new file stays unnamed.
+    @Test func aLogoKeepsItsName() {
         #expect(
-            write(.file("/set/event.mov"), 2, .thisConcert, gala) == PictureWrite(concert: own("", "/set/event.mov")))
-        #expect(write(.name("Orchestra"), 1, .thisConcert, nil) == nil)
+            write(.file("/set/event.mov"), 2, .thisConcert, gala)
+                == PictureWrite(concert: own("Event", "/set/event.mov")))
+        #expect(write(.file("/set/new.png"), 1, .thisConcert, gala) == PictureWrite(concert: own("", "/set/new.png")))
+        #expect(
+            write(.name("Orchestra"), 1, .thisConcert, gala)
+                == PictureWrite(concert: own("Orchestra", "logos/own.png")))
+        #expect(
+            write(.name("Orchestra"), 1, .everyConcert, nil)
+                == PictureWrite(defaultSet: own("Orchestra", "/set/orchestra.png")))
     }
 
     @Test func emptyUnderThisConcertOnlyTouchesTheConcert() {

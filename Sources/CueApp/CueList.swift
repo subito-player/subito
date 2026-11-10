@@ -337,10 +337,9 @@ private struct PictureInspector: View {
                     Text(s.everyConcert)
                 }
             }
-            if number > logoCount, shown != nil {
+            if shown != nil {
                 EditField(
-                    model: model, label: s.pictureName, field: .pictureName(number),
-                    placeholder: Pictures.slotName(nil, number: number)
+                    model: model, label: s.pictureName, field: .pictureName(number), placeholder: s.pictureTitle(number)
                 )
                 .id(Field.pictureName(number))
             }
