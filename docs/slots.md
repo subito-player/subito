@@ -1,4 +1,4 @@
-# Slots (design, not built)
+# Slots (v0.3)
 
 Status 2026-11-10: agreed with the owner in a mockup (private canvas
 https://claude.ai/artifact/9N2KUUhxUk1G16F7m3tyPY). Building as v0.3 for the first rehearsal (2026-11-13), plan in
@@ -41,7 +41,9 @@ projector never shows a slot's name.
 - "Saved for" is where the next change goes (call): with a concert open it starts at "This concert only", so a
   change never rewrites the default by accident; "Every concert" must be picked on purpose. With a single movie open
   only "Every concert" exists. A change under "This concert only" creates the concert's own copy; "Back to default"
-  drops it; "Empty this slot" writes "empty in this concert" or clears the default, by the same choice.
+  drops it; "Empty this slot" writes "empty in this concert" or clears the default, by the same choice. "Every
+  concert" includes the open concert: a change or Empty under it also drops this concert's own copy, so it shows at
+  once (call, after the task 3 review).
 - In edit mode a click on a logo or slot selects it (call); keys still show and hide covers. BLACK is unchanged.
 
 ## Keys
