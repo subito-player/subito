@@ -5,14 +5,14 @@
 Silent video player for live orchestras. One Mac, two screens: the laptop is the operator's control screen, the
 projector shows only video, black, a logo or the break screen. Keyboard first, boring and predictable.
 
-Status: v0.3.0 (logos and slots), first rehearsal 2026-11-13. macOS 14+, Apple Silicon and Intel (universal).
+Status: v0.3.0 (logos and slots), first rehearsal 2026-11-13. macOS 14+, Apple Silicon only.
 
 ## Build
 
 ```sh
 make test     # CueCore tests with coverage gate
 make run      # build and launch the app
-make app      # ad-hoc signed universal .app in build/
+make app      # ad-hoc signed Apple Silicon .app in build/
 make zip      # zipped .app for sharing
 make samples  # test clips, logos, a movie and a concert in build/samples (needs ffmpeg or nix)
 ```
