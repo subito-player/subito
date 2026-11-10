@@ -171,9 +171,24 @@ import Testing
 
             let movie = try ShowLoader.movie(fromFolder: folder)
 
-            let expected = ["01_a.M4V", "01_b.mp4", "02_y.mov", "10_x.mp4"].map { Item.clip(Clip(file: $0)) }
+            let expected = ["01_a.M4V", "01_b.mp4", "02_y.mov", "03_z.avi", "10_x.mp4"].map {
+                Item.clip(Clip(file: $0))
+            }
             #expect(movie == Movie(title: "My Show", items: expected))
             #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted() == before)
+        }
+    }
+}
+
+@Suite struct ConvertibleFolderTests {
+    @Test func clipsThatNeedConvertingAreListedUntilTheirMP4Exists() throws {
+        try withTempDir { dir in
+            let folder = dir.appendingPathComponent("Old")
+            for name in ["01_a.mkv", "02_b.webm", "02_b.mp4", "03_c.avi", "04_d.srt"] {
+                try write("", to: folder.appendingPathComponent(name))
+            }
+            let movie = try ShowLoader.movie(fromFolder: folder)
+            #expect(movie.items == ["01_a.mkv", "02_b.mp4", "03_c.avi"].map { Item.clip(Clip(file: $0)) })
         }
     }
 }
