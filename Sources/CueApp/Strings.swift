@@ -44,6 +44,7 @@ struct Strings {
     }
     var muted: String { pick("NÉMÍTVA", "MUTED") }
     var lastKey: String { pick("Utolsó gomb", "Last key") }
+    var keys: String { pick("Billentyűk", "Keys") }
     var output: String { pick("Kimenet", "Output") }
     var automatic: String { pick("Automatikus", "Automatic") }
     var noExternalDisplay: String { pick("Nincs külső kijelző", "No external display") }

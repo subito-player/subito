@@ -2,14 +2,14 @@ import Foundation
 
 // One printable A4 page per language, built from the loaded key map so a remapped key prints as it works.
 public enum CheatSheet {
-    struct Row: Equatable {
-        var label: String
-        var keys: [String]
+    public struct Row: Equatable {
+        public var label: String
+        public var keys: [String]
     }
 
-    struct Section: Equatable {
-        var title: String
-        var rows: [Row]
+    public struct Section: Equatable {
+        public var title: String
+        public var rows: [Row]
     }
 
     private enum Group: Int, CaseIterable {
@@ -67,7 +67,8 @@ public enum CheatSheet {
             """
     }
 
-    static func sections(keyMap: KeyMap, lang: Lang) -> [Section] {
+    // The same rows feed the printable page and the in-app key list.
+    public static func sections(keyMap: KeyMap, lang: Lang) -> [Section] {
         let words = Words(lang: lang)
         var entries: [Entry] = []
         var numbers: [(number: Int, chord: KeyChord)] = []

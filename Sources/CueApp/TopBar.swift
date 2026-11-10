@@ -18,6 +18,7 @@ struct TopBar: View {
             Spacer(minLength: 8)
             LastKeyView(model: model).layoutPriority(1)
             LanguageSwitch(model: model).fixedSize()
+            KeysButton(model: model)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 9)
@@ -146,6 +147,26 @@ private struct LastKeyView: View {
         .lineLimit(1)
         // Fixed, so a long key or action never pushes the rest of the bar around.
         .frame(width: 300, alignment: .leading)
+    }
+}
+
+private struct KeysButton: View {
+    let model: AppModel
+
+    var body: some View {
+        let on = model.keysOpen
+        Button(action: model.toggleKeys) {
+            Text("?")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(on ? Color.white : Palette.fg)
+                .frame(width: 32, height: 32)
+                .background(on ? Palette.confirm : Palette.raise, in: Circle())
+                .overlay(Circle().strokeBorder(on ? Palette.confirm : Palette.line))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .accessibilityLabel(model.strings.keys)
     }
 }
 

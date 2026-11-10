@@ -69,6 +69,10 @@ struct ControlView: View {
             .overlay(alignment: .bottomLeading) {
                 if model.preflightOpen { PreflightPanel(model: model).padding(12) }
             }
+            // Top leading, clear of the preflight panel (bottom) and the Advanced panel (trailing).
+            .overlay(alignment: .topLeading) {
+                if model.keysOpen { KeysPanel(model: model).padding(12) }
+            }
             // Trailing, so it stays clear of the preflight panel on the leading side.
             .overlay(alignment: .topTrailing) {
                 if model.advanced.open { AdvancedPanel(model: model).padding(12) }
