@@ -17,7 +17,8 @@ time. Note every surprise in the log at the bottom; it drives v0.2.
       the loop point, GO onto the "Logo 2" cue is an instant cut with no black frame.
    3. Space, arrows, Home, Opt+Right on the next clip, then GO: starts from the parked point. Park and GO within a
       frame or two: the frame counter must start at the parked frame, never show the previous one.
-   4. Let a clip end: last frame holds. GO to the break: countdown, title holds at 0:00.
+   4. Let a clip end: last frame holds. GO to the break: countdown, title holds at 0:00. Title and countdown sit
+      centred on the projector, as in the LIVE preview.
    5. Move the cursor towards the projector: it stops at the laptop edge.
    6. Unplug HDMI during a clip: nothing on the laptop panel, red NO PROJECTOR. Replug: picture returns in the same
       state. Write down the projector's refresh rates from the top bar.

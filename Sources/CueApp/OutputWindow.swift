@@ -64,6 +64,8 @@ final class OutputWindow: NSWindow {
         breakLayer.backgroundColor = black
         coverBlack.backgroundColor = black
         for layer in [breakTitle, breakCountdown] {
+            // CATextLayer ignores the attributed string's paragraph alignment.
+            layer.alignmentMode = .center
             layer.truncationMode = .end
             breakLayer.addSublayer(layer)
         }
@@ -244,10 +246,15 @@ final class OutputWindow: NSWindow {
         let titleSize = max(1, bounds.height * 0.12)
         let countdownSize = max(1, bounds.height * 0.24)
         let inset = bounds.width * 0.05
-        breakTitle.frame = CGRect(
-            x: inset, y: bounds.height * 0.55, width: bounds.width - 2 * inset, height: titleSize * 1.3)
+        let titleHeight = titleSize * 1.3
+        let countdownHeight = countdownText == nil ? 0 : countdownSize * 1.3
+        let gap = countdownText == nil ? 0 : bounds.height * 0.05
+        // Title over countdown as one block centred on the screen, as the LIVE preview's VStack lays it out.
+        let bottom = (bounds.height - titleHeight - gap - countdownHeight) / 2
         breakCountdown.frame = CGRect(
-            x: inset, y: bounds.height * 0.2, width: bounds.width - 2 * inset, height: countdownSize * 1.3)
+            x: inset, y: bottom, width: bounds.width - 2 * inset, height: countdownHeight)
+        breakTitle.frame = CGRect(
+            x: inset, y: bottom + countdownHeight + gap, width: bounds.width - 2 * inset, height: titleHeight)
         breakTitle.string = Self.text(titleText, font: .systemFont(ofSize: titleSize, weight: .semibold))
         breakCountdown.string = Self.text(
             countdownText ?? "", font: .monospacedDigitSystemFont(ofSize: countdownSize, weight: .semibold))
