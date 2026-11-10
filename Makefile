@@ -76,10 +76,10 @@ app:
 	cp "$$(swift build -c release $(ARCHS) --product CueApp --show-bin-path)/CueApp" "$(APP_DIR)/Contents/MacOS/$(APP_NAME)"
 	printf '%s\n' "$$INFO_PLIST" > "$(APP_DIR)/Contents/Info.plist"
 	plutil -lint "$(APP_DIR)/Contents/Info.plist"
-	# Icon Composer source: Assets.car for macOS 26 appearances, AppIcon.icns for macOS 14 and 15.
-	xcrun actool --compile "$(APP_DIR)/Contents/Resources" --platform macosx --minimum-deployment-target 14.0 \
-		--app-icon AppIcon --output-partial-info-plist build/AppIcon.plist --output-format human-readable-text \
-		--errors --warnings design/AppIcon.icon
+	# Icon Composer source to Assets.car (macOS 26) and AppIcon.icns (14, 15); absolute paths, its daemon's cwd can be stale.
+	xcrun actool --compile "$(CURDIR)/$(APP_DIR)/Contents/Resources" --platform macosx --minimum-deployment-target 14.0 \
+		--app-icon AppIcon --output-partial-info-plist "$(CURDIR)/build/AppIcon.plist" \
+		--output-format human-readable-text --errors --warnings "$(CURDIR)/design/AppIcon.icon"
 	codesign --force --options runtime --sign "$(SIGN_ID)" "$(APP_DIR)"
 	codesign --verify --strict "$(APP_DIR)"
 
