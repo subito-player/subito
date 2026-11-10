@@ -3,7 +3,7 @@ include app.env
 VERSION := $(shell cat VERSION)
 SIGN_ID ?= -
 COVERAGE_MIN ?= 90
-ARCHS := --arch arm64 --arch x86_64
+ARCHS := --arch arm64
 APP_DIR := build/$(APP_NAME).app
 
 .DEFAULT_GOAL := app
