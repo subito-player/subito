@@ -118,8 +118,8 @@ While an editor text field is being edited, keys go to the field (banner says so
 from then on keys drive the show again.
 
 **Control window (layout A, always dark):** top bar (mode toggle, concert title, Open, projector/power/audio/Hz
-status dots, last key, HU/EN); left 30% two-level list (movie headers, items, LIVE red, ARMED amber); right LIVE and
-NEXT previews side by side, the clip's brief (2 lines) under each title (NEXT has its own small scrub bar for
+status dots, last key, HU/EN, `?` for the key list); left 30% two-level list (movie headers, items, LIVE red, ARMED
+amber); right LIVE and NEXT previews side by side, the clip's brief (2 lines) under each title (NEXT has its own small scrub bar for
 parking), progress bar with white planned-end and amber tail-end markers, big "to planned end" time,
 smaller "to clip end"; button row with every key action and its key; status line at bottom (plain language, no codec
 names). Window fills the laptop screen so there is nothing else to click. If the app loses focus: big red "keys not

@@ -135,6 +135,7 @@ final class AppModel {
     private(set) var systemFindings: [Finding] = []
     private(set) var checking = false
     private(set) var preflightOpen = false
+    private(set) var keysOpen = false
     private(set) var recoveryNotice: RecoveryNotice?
     var manualChecks: Set<ManualCheck> = []
     var filePickerOpen = false
@@ -362,6 +363,10 @@ final class AppModel {
         guard preflightOpen else { return }
         checkSystem()
         converter.locate()
+    }
+
+    func toggleKeys() {
+        keysOpen.toggle()
     }
 
     func saveState(cleanExit: Bool = false) {
