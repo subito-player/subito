@@ -141,7 +141,15 @@ reaching the app, click here" banner.
 
 **Advanced view (Ctrl+Opt+D, for the owner):** log tail, key-to-switch timings, projector modes, memory use (now and
 at launch), stress runner (random GO/BLACK/LOGO/arm, rehearsal only, any key stops it), cheat sheet, key map and log
-folder buttons. Per-clip file details are in the preflight panel and the log.
+folder buttons, check for updates with a one-line result. Per-clip file details are in the preflight panel and the log.
+
+**Updates (rehearsal only):** the app asks GitHub's public API (`/repos/<UPDATE_REPO from app.env>/releases/latest`, no
+token, 10 s timeout, `User-Agent: <name>/<version>`) once about 5 s after launch and when the Advanced view's "Check
+for updates" button is pressed; there is no polling. A newer release (numeric per-part version compare, drafts,
+prereleases and tags that are no version ignored) puts a clickable "Update: vX.Y.Z" badge in the top bar; the click
+opens the release's `.dmg` (else the release page) in the browser. Nothing is downloaded or installed by the app.
+Concert never sends the request (one in flight is cancelled), shows no badge and opens no download. A failure
+(offline, rate limit, bad answer) shows only as the Advanced view's result line and a log line.
 
 **Key map file:** `~/Library/Application Support/<bundle id>/keymap.json`, written with the defaults on first launch,
 read at launch. A file still holding the v0.2 default keys is rewritten with the current default (it adds the slot
@@ -189,8 +197,8 @@ the app is dead the projector shows the desktop: checklist says "switch to backu
 - SwiftPM package, no Xcode project, no dependencies. Targets: `CueCore` (Foundation only: models, file loading,
   flattening, state machine, key map, `Player` protocol), `CueApp` (AppKit, SwiftUI for control window, AVFoundation),
   `CueCoreTests` (state machine, file parsing, key map). Module names neutral so a rename touches one file.
-- Name, command, bundle ID, tagline live only in `app.env` (plain `KEY=value`, included by the Makefile). Code reads
-  name and ID from `Bundle.main`.
+- Name, command, bundle ID, tagline, update repository live only in `app.env` (plain `KEY=value`, included by the
+  Makefile). Code reads name, ID and `UpdateRepository` from `Bundle.main`.
 - Build via `Makefile`: `make test`, `make app` (release build, assemble .app, Info.plist from `app.env`, sign),
   `make run`, `make zip`, `make clean`. Signing: `SIGN_ID ?= -` (ad-hoc now; Developer ID + notarisation later is a
   variable change plus one target).

@@ -37,6 +37,13 @@ struct AdvancedPanel: View {
                 .disabled(concert)
                 .opacity(concert ? 0.55 : 1)
                 .padding(.top, 6)
+                heading(s.updates)
+                HStack(spacing: 10) {
+                    BarButton(text: s.checkForUpdates, action: model.checkForUpdates)
+                        .disabled(concert || model.updates.checking)
+                        .opacity(concert ? 0.55 : 1)
+                    Text(updateLine(s)).foregroundStyle(Palette.dim).lineLimit(1)
+                }
             }
             .padding(14)
             Palette.line.frame(height: 1)
@@ -60,6 +67,16 @@ struct AdvancedPanel: View {
         row(
             s.memory,
             s.memory(now: Advanced.megabytes(advanced.memory), launch: Advanced.megabytes(advanced.memoryAtLaunch)))
+    }
+
+    private func updateLine(_ s: Strings) -> String {
+        if model.updates.checking { return s.checkingForUpdates }
+        return switch model.updates.result {
+        case .success(.upToDate)?: s.upToDate(model.updates.running)
+        case .success(.available(let version, _))?: s.updateAvailable(version)
+        case .failure(let failure)?: s.updateFailed(failure)
+        case nil: ""
+        }
     }
 
     private func output(_ s: Strings) -> String {
