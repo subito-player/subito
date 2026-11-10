@@ -20,6 +20,8 @@ define INFO_PLIST
     <string>$(APP_NAME)</string>
     <key>CFBundleIdentifier</key>
     <string>$(BUNDLE_ID)</string>
+    <key>PreviousBundleIdentifier</key>
+    <string>$(PREVIOUS_BUNDLE_ID)</string>
     <key>CFBundleExecutable</key>
     <string>$(APP_NAME)</string>
     <key>CFBundlePackageType</key>

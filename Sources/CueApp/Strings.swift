@@ -3,7 +3,7 @@ import CueCore
 import Foundation
 
 extension Lang {
-    private static let savedKey = "language"
+    static let savedKey = "language"
 
     static var saved: Lang {
         UserDefaults.standard.string(forKey: savedKey).flatMap(Lang.init(rawValue:)) ?? .hu

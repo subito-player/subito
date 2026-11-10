@@ -15,7 +15,7 @@ struct DisplayChoice: Identifiable, Equatable {
 
 @MainActor
 final class DisplayWatcher {
-    private static let savedKey = "outputDisplay"
+    static let savedKey = "outputDisplay"
 
     var onChange: (OutputStatus) -> Void = { _ in }
     // False while rehearsal shows the output in a window or not at all: the watcher then only reports.

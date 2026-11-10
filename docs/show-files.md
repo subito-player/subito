@@ -1,6 +1,6 @@
 # Show files
 
-Reference for anything that writes Attacca files by hand or from a script (cutlist tools, other Claude sessions).
+Reference for anything that writes Subito files by hand or from a script (cutlist tools, other Claude sessions).
 The in-app editor writes the same format.
 
 ## Rules
@@ -13,7 +13,7 @@ The in-app editor writes the same format.
   (bars, audio notes, source project, approvals) in a separate file, never only in the show file.
 - "Open folder" on a clip folder uses `<folder name>.movie.json` inside it when it exists, else builds one from the
   `NN_name.*` video files (MKV, WebM, AVI and similar are listed red, to convert, unless a same-named MP4 exists).
-- Check a file without the UI: `build/Attacca.app/Contents/MacOS/Attacca --check <file>`. Exit 0 ok, 1 warnings,
+- Check a file without the UI: `build/Subito.app/Contents/MacOS/Subito --check <file>`. Exit 0 ok, 1 warnings,
   2 a clip can't play, 3 the file can't be loaded.
 
 ## Movie: `<name>.movie.json`
