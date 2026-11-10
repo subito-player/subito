@@ -62,6 +62,7 @@ file, or the file length differs from `planned_end_s + tail_s` by more than 1.05
   "format": 1,
   "title": "Spring Gala 2026",
   "logos": ["logos/orchestra.png", { "loop": "logos/event_loop.mp4" }],
+  "slots": [null, { "name": "Sponsor 2026", "file": "slots/sponsor.png" }, null, ""],
   "items": [
     { "type": "black" },
     { "type": "movie", "file": "The Greatest Showman/The Greatest Showman.movie.json" },
@@ -74,7 +75,8 @@ file, or the file length differs from `planned_end_s + tail_s` by more than 1.05
 | Key | Required | Meaning |
 |---|---|---|
 | `format`, `title` | yes | As in a movie. |
-| `logos` | no | Logo 1 (L key) and logo 2 (Shift+L). Image path, or `{ "loop": "file.mp4" }` for a muted looping video. `""` = no file (shows black). A GIF shows its first frame only: convert it to a looping MP4. |
+| `logos` | no | Logo 1 (L key) and logo 2 (Shift+L) over the default set. Image path, or `{ "loop": "file.mp4" }` for a muted looping video. `null` or left out = the default set's logo, `""` = no logo in this concert. A GIF shows its first frame only: convert it to a looping MP4. |
+| `slots` | no | Slots 1 to 6 (keypad 1 to 6) over the default set: `null` or left out = the default set's slot, `""` = empty in this concert, `{ "name": ..., "file": ... }` = this concert's own (MP4, MOV, M4V loop muted, anything else is an image). Only what the concert changes is stored; the editor writes no `slots` key when nothing is changed. |
 | `items` | no | Allowed types: `movie`, `black`, `break`, `logo`. No `clip` in a concert: put clips in a movie. |
 
 Other item types:
@@ -84,7 +86,20 @@ Other item types:
 | `{ "type": "black" }` | none |
 | `{ "type": "movie", "file": "x.movie.json" }` | `file` required, must exist |
 | `{ "type": "break", "minutes": 20, "countdown": true, "text": "Szünet" }` | `minutes` required; `countdown` default false; `text` optional |
-| `{ "type": "logo", "logo": 1 }` | 1-based index into the concert's `logos` |
+| `{ "type": "logo", "logo": 1 }` | 1 or 2: Logo 1 or 2 as a cue (a slot is never a cue) |
+
+## Default set: `slots.json`
+
+`~/Library/Application Support/<bundle id>/slots.json`, one per Mac: the Logo 1, Logo 2 and slots 1 to 6 every
+concert starts from, and what a single movie shows. Absolute paths. `null` or left out = empty.
+
+```json
+{
+  "format": 1,
+  "logos": ["/Users/me/Show/orchestra.png", null],
+  "slots": [{ "name": "Thank you", "file": "/Users/me/Show/thanks.mp4" }, null, { "name": "Interval", "file": "/Users/me/Show/interval.png" }]
+}
+```
 
 ## Not in the file
 

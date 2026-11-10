@@ -31,26 +31,52 @@ public struct Movie: Codable, Equatable, Sendable {
 public struct Concert: Codable, Equatable, Sendable {
     public var format: Int
     public var title: String
-    public var logos: [Logo]
+    // Logo 1 and 2 over the default set: nil = the default, an empty path = none in this concert.
+    public var logos: [Logo?]
+    // Slots 1 to 6 over the default set.
+    public var slots: [SlotOverride]
     public var items: [Item]
 
-    public init(format: Int = currentFormat, title: String, logos: [Logo] = [], items: [Item] = []) {
+    public init(
+        format: Int = currentFormat, title: String, logos: [Logo?] = [], slots: [SlotOverride] = [], items: [Item] = []
+    ) {
         self.format = format
         self.title = title
         self.logos = logos
+        self.slots = slots
         self.items = items
     }
 
     private enum CodingKeys: String, CodingKey {
-        case format, title, logos, items
+        case format, title, logos, slots, items
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         format = try container.decode(Int.self, forKey: .format)
         title = try container.decode(String.self, forKey: .title)
-        logos = try container.decodeIfPresent([Logo].self, forKey: .logos) ?? []
+        logos = try container.decodeIfPresent([Logo?].self, forKey: .logos) ?? []
+        slots = try container.decodeIfPresent([SlotOverride].self, forKey: .slots) ?? []
         items = try container.decodeIfPresent([Item].self, forKey: .items) ?? []
+    }
+
+    // No `slots` key unless one is overridden, so an older file saves back unchanged.
+    public func encode(to encoder: Encoder) throws {
+        let concert = trimmed
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(concert.format, forKey: .format)
+        try container.encode(concert.title, forKey: .title)
+        try container.encode(concert.logos, forKey: .logos)
+        if !concert.slots.isEmpty { try container.encode(concert.slots, forKey: .slots) }
+        try container.encode(concert.items, forKey: .items)
+    }
+
+    // Trailing "use the default" entries say nothing.
+    var trimmed: Concert {
+        var concert = self
+        while let last = concert.logos.last, last == nil { concert.logos.removeLast() }
+        while concert.slots.last == .useDefault { concert.slots.removeLast() }
+        return concert
     }
 }
 

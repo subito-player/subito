@@ -59,8 +59,8 @@ public enum Edit: Equatable, Sendable {
     case setLogo(Place, Int)
     // A converted sibling replaces the clip's file; the list keeps the title it showed.
     case replaceClipFile(Place, URL)
-    // The concert's logo number n (1-based); nil clears it. Paths inside the show folder are stored relative.
-    case setLogoFile(Int, Logo?)
+    // Picture 1-2 = the concert's Logo 1-2, 3-8 = its slots 1-6. Paths inside the show folder are stored relative.
+    case setPicture(Int, SlotOverride)
 }
 
 // A concert logo resolved against the concert file.
@@ -139,10 +139,10 @@ public struct ShowDocument: Equatable, Sendable {
         concert?.title ?? movies[url]?.title ?? ""
     }
 
-    // nil for a logo number with no file, which shows black.
+    // The concert's own logos; nil where it has none, which shows black.
     public var logos: [LogoFile?] {
         (concert?.logos ?? []).map { logo in
-            guard !logo.path.isEmpty else { return nil }
+            guard let logo, !logo.path.isEmpty else { return nil }
             let file = ShowLoader.resolve(logo.path, relativeTo: url)
             return if case .loop = logo { .loop(file) } else { .image(file) }
         }
@@ -254,7 +254,8 @@ public struct ShowDocument: Equatable, Sendable {
                 item.countdown = countdown
             }
         case .setLogo(let place, let number):
-            guard case .logo? = item(at: place) else { return .failure(.noSuchItem) }
+            // Slots are covers only, never a live item.
+            guard case .logo? = item(at: place), (1...logoCount).contains(number) else { return .failure(.noSuchItem) }
             return modify(place, to: .logo(LogoItem(logo: number)))
         case .replaceClipFile(let place, let file):
             return modifyClip(place) { clip in
@@ -264,15 +265,30 @@ public struct ShowDocument: Equatable, Sendable {
                 clip.file = folder + file.lastPathComponent
                 if clip.resolvedTitle != title { clip.title = title }
             }
-        case .setLogoFile(let number, let logo):
-            guard var logos = concert?.logos, number >= 1 else { return .failure(.noSuchItem) }
-            // An empty path keeps the numbers after it in place; v0.1 reads it as a logo that shows black.
-            let none = Logo.image("")
-            while logos.count < number { logos.append(none) }
-            logos[number - 1] = logo.flatMap { $0.path.isEmpty ? nil : relative($0) } ?? none
-            while logos.last?.path.isEmpty == true { logos.removeLast() }
+        case .setPicture(let number, var change):
+            guard var changed = concert, (1...pictureCount).contains(number) else { return .failure(.noSuchItem) }
+            switch change {
+            case .own(let entry) where entry.file.isEmpty: change = .empty
+            case .own(var entry):
+                entry.file = relative(entry.file)
+                change = .own(entry)
+            default: break
+            }
+            if number <= logoCount {
+                while changed.logos.count < number { changed.logos.append(nil) }
+                changed.logos[number - 1] =
+                    switch change {
+                    case .useDefault: nil
+                    case .empty: .image("")
+                    case .own(let entry): entry.logo
+                    }
+            } else {
+                let index = number - logoCount - 1
+                while changed.slots.count <= index { changed.slots.append(.useDefault) }
+                changed.slots[index] = change
+            }
             var document = self
-            document.concert?.logos = logos
+            document.concert = changed.trimmed
             return .success(unchanged(document, file: url))
         }
     }
@@ -364,9 +380,8 @@ public struct ShowDocument: Equatable, Sendable {
         (0..<count).map { $0 }
     }
 
-    private func relative(_ logo: Logo) -> Logo {
-        let path = ShowLoader.relativePath(to: ShowLoader.resolve(logo.path, relativeTo: url), from: url)
-        return if case .loop = logo { .loop(path) } else { .image(path) }
+    private func relative(_ path: String) -> String {
+        ShowLoader.relativePath(to: ShowLoader.resolve(path, relativeTo: url), from: url)
     }
 
     private static func text(_ value: String) -> String? {

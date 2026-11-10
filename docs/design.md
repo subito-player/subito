@@ -78,7 +78,7 @@ clip has a frame ready.
 **Break screen:** big text plus optional mm:ss countdown from GO, over black (or logo 1 if set). At 0:00 the countdown
 disappears and the screen holds. Rendered content, not UI.
 
-**Keys** (`keymap.json`, top-row and keypad digits both work, numpad/footswitch need no code):
+**Keys** (`keymap.json`, numpad/footswitch need no code; keypad digits are keys of their own, `Num0` to `Num9`):
 
 | Key | Action | Key | Action |
 |---|---|---|---|
@@ -86,10 +86,10 @@ disappears and the screen holds. Rendered content, not UI.
 | Space | play/pause live clip (also covered) | L / Shift+L | logo 1 / 2 cover on/off (fades 0.5 s in and out; logo 1 <-> 2, BLACK and GO cut) |
 | Left/Right | seek live 5 s | Shift+Left/Right | seek live 30 s |
 | Opt+Left/Right | park armed 5 s | Opt+Shift+Left/Right | park armed 30 s |
-| Up/Down, keypad -/+ | arm previous/next item | 0 to 9 | arm clip with that number in current movie |
+| Up/Down, keypad -/+ | arm previous/next item | 0 to 9 (top row) | arm clip with that number in current movie; keypad digits never arm |
 | Home (Fn+Left) | restart live clip | M | mute instantly; sound on needs a 2nd press within 3 s (rehearsal only) |
 | Esc | nothing | Cmd+Q | quit (press twice; concert: press twice + click) |
-| Ctrl+Opt+D | toggle Advanced view | | |
+| Ctrl+Opt+D | toggle Advanced view | Keypad 1 to 6 | slot 1 to 6 cover on/off, like a logo (`slots.md`) |
 
 A stray Shift or Option still reaches the other keys; digits arm only with no modifier held.
 Last key and its action are shown in the control window.
@@ -130,8 +130,10 @@ at launch), stress runner (random GO/BLACK/LOGO/arm, rehearsal only, any key sto
 folder buttons. Per-clip file details are in the preflight panel and the log.
 
 **Key map file:** `~/Library/Application Support/<bundle id>/keymap.json`, written with the defaults on first launch,
-read at launch. A broken file falls back to the default keys with a red status line naming the problem. Button labels
-and the cheat sheet follow the active map. Cheat sheet: one printable A4 page in the current UI language.
+read at launch. A file still holding the v0.2 default keys is rewritten with the current default (it adds the slot
+keys); any other file is never rewritten, and slots it gives no key are reported. A broken file falls back to the
+default keys with a red status line naming the problem. Button labels and the cheat sheet follow the active map.
+Cheat sheet: one printable A4 page in the current UI language.
 
 **Preflight** (launch and on load, results on control only): files exist; playable by AVFoundation (red if not, plain
 message); size, fps, codec, duration vs `planned_end_s + tail_s` (yellow if off by > 1 s plus one frame or not
