@@ -36,8 +36,8 @@ projector never shows a slot's name.
   concert's own). An empty slot is a dashed "empty" button. The active cover has the amber ring logos have today.
 - Edit mode: clicking a slot selects it and the inspector shows Name, File (image or looping video, Choose...),
   "Saved for" (Every concert = default set / This concert only), "Back to default", the key (read-only, from the
-  key map) and "Empty this slot" (press twice). Empty slots show "+ Add". Logo 1 and 2 work the same, without a
-  name; the concert inspector's Logo 1/2 pickers go.
+  key map) and "Empty this slot" (press twice). Empty slots show "+ Add". Logo 1 and 2 work the same, name included
+  (owner, 2026-11-10: "Blades of Chaos" instead of "Logo 1"); the concert inspector's Logo 1/2 pickers go.
 - "Saved for" is where the next change goes (call): with a concert open it starts at "This concert only", so a
   change never rewrites the default by accident; "Every concert" must be picked on purpose. With a single movie open
   only "Every concert" exists. A change under "This concert only" creates the concert's own copy; "Back to default"

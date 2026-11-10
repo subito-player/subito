@@ -161,7 +161,8 @@ public enum Preflight {
             guard let picture, !showable.contains(number) else { return nil }
             let file = picture.file.url.lastPathComponent
             guard number > logoCount else {
-                return Finding(severity: .warn, kind: .logo, detail: "\(number) · \(file)")
+                let name = picture.name.isEmpty ? "\(number)" : picture.name
+                return Finding(severity: .warn, kind: .logo, detail: "\(name) · \(file)")
             }
             return Finding(
                 severity: .warn, kind: .slot, detail: "\(Pictures.slotName(picture, number: number)) · \(file)")

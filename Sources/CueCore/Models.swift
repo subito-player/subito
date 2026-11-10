@@ -80,18 +80,28 @@ public struct Concert: Codable, Equatable, Sendable {
     }
 }
 
-public enum Logo: Equatable, Sendable {
-    case image(String)
-    case loop(String)
-
+public struct Logo: Equatable, Sendable {
+    public var name: String
     // Empty for a logo number with no file.
-    public var path: String {
-        switch self {
-        case .image(let path), .loop(let path): path
-        }
+    public var path: String
+    public var loops: Bool
+
+    public init(name: String = "", path: String, loops: Bool) {
+        self.name = name
+        self.path = path
+        self.loops = loops
+    }
+
+    public static func image(_ path: String, name: String = "") -> Logo {
+        Logo(name: name, path: path, loops: false)
+    }
+
+    public static func loop(_ path: String, name: String = "") -> Logo {
+        Logo(name: name, path: path, loops: true)
     }
 }
 
+// Unnamed: "path" or {"loop": path}, as before names. Named: the slot form, looping by the file's extension.
 extension Logo: Codable {
     private enum CodingKeys: String, CodingKey {
         case loop
@@ -103,17 +113,22 @@ extension Logo: Codable {
             return
         }
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self = .loop(try container.decode(String.self, forKey: .loop))
+        if let path = try container.decodeIfPresent(String.self, forKey: .loop) {
+            self = .loop(path)
+            return
+        }
+        self = try SlotEntry(from: decoder).logo
     }
 
     public func encode(to encoder: Encoder) throws {
-        switch self {
-        case .image(let path):
+        if !name.isEmpty {
+            try SlotEntry(name: name, file: path).encode(to: encoder)
+        } else if loops {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(path, forKey: .loop)
+        } else {
             var container = encoder.singleValueContainer()
             try container.encode(path)
-        case .loop(let file):
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(file, forKey: .loop)
         }
     }
 }

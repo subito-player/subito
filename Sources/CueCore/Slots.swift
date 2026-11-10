@@ -16,8 +16,9 @@ public struct SlotEntry: Codable, Equatable, Sendable {
 
     // A video file loops muted; anything else shows as an image.
     public var logo: Logo {
-        ShowLoader.playableExtensions.contains(URL(fileURLWithPath: file).pathExtension.lowercased())
-            ? .loop(file) : .image(file)
+        Logo(
+            name: name, path: file,
+            loops: ShowLoader.playableExtensions.contains(URL(fileURLWithPath: file).pathExtension.lowercased()))
     }
 }
 
@@ -174,11 +175,11 @@ public struct PictureWrite: Equatable, Sendable {
 }
 
 extension Concert {
-    // This concert's own setting for picture n; a logo reads like a slot without a name.
+    // This concert's own setting for picture n; a logo reads like a slot.
     public func pictureOverride(_ number: Int) -> SlotOverride {
         if number <= logoCount {
             guard logos.indices.contains(number - 1), let logo = logos[number - 1] else { return .useDefault }
-            return logo.path.isEmpty ? .empty : .own(SlotEntry(name: "", file: logo.path))
+            return logo.path.isEmpty ? .empty : .own(SlotEntry(name: logo.name, file: logo.path))
         }
         let index = number - logoCount - 1
         return slots.indices.contains(index) ? slots[index] : .useDefault
@@ -186,25 +187,24 @@ extension Concert {
 }
 
 public enum Pictures {
-    // nil when there is nothing to write: a name for a logo, or for a picture with no file.
+    // nil when there is nothing to write: a name for a picture with no file.
     // Every concert includes this one, so it also drops this concert's own setting and the change shows at once.
     public static func write(
         _ change: PictureChange, to number: Int, shown: Picture?, concert: Concert?, scope: PictureScope
     ) -> PictureWrite? {
-        let isSlot = number > logoCount
         let stored = concert?.pictureOverride(number) ?? .useDefault
         let override: SlotOverride
         switch change {
         case .empty:
             override = .empty
         case .name(let name):
-            guard isSlot, let shown else { return nil }
+            guard let shown else { return nil }
             var file = shown.file.url.path
             // As the concert wrote it, so a relative path outside the show folder stays relative.
             if scope == .thisConcert, shown.source == .concert, case .own(let own) = stored { file = own.file }
             override = .own(SlotEntry(name: name, file: file))
         case .file(let file):
-            override = .own(SlotEntry(name: isSlot ? shown?.name ?? "" : "", file: file))
+            override = .own(SlotEntry(name: shown?.name ?? "", file: file))
         }
         switch scope {
         case .thisConcert:
@@ -234,26 +234,24 @@ public enum Pictures {
 
     // Always `pictureCount` entries, nil where nothing shows; concert paths resolve against the concert file.
     public static func merge(defaults: SlotSet, concert: Concert?, concertURL: URL?) -> [Picture?] {
-        func picture(_ name: String, _ logo: Logo?, _ source: PictureSource) -> Picture? {
+        func picture(_ logo: Logo?, _ source: PictureSource) -> Picture? {
             guard let logo, !logo.path.isEmpty else { return nil }
             let base = source == .concert ? concertURL : nil
             let url = base.map { ShowLoader.resolve(logo.path, relativeTo: $0) } ?? URL(fileURLWithPath: logo.path)
-            let file: LogoFile = if case .loop = logo { .loop(url) } else { .image(url) }
-            return Picture(name: name, file: file, source: source)
+            return Picture(name: logo.name, file: logo.loops ? .loop(url) : .image(url), source: source)
         }
         let logos = (0..<logoCount).map { index -> Picture? in
-            let name = "Logo \(index + 1)"
             if let concert, concert.logos.indices.contains(index), let own = concert.logos[index] {
-                return picture(name, own, .concert)
+                return picture(own, .concert)
             }
-            return picture(name, entry(defaults.logos, index), .defaultSet)
+            return picture(entry(defaults.logos, index), .defaultSet)
         }
         let slots = (0..<slotCount).map { index -> Picture? in
             let change = concert.flatMap { $0.slots.indices.contains(index) ? $0.slots[index] : nil } ?? .useDefault
             switch change {
-            case .useDefault: return entry(defaults.slots, index).flatMap { picture($0.name, $0.logo, .defaultSet) }
+            case .useDefault: return picture(entry(defaults.slots, index)?.logo, .defaultSet)
             case .empty: return nil
-            case .own(let own): return picture(own.name, own.logo, .concert)
+            case .own(let own): return picture(own.logo, .concert)
             }
         }
         return logos + slots

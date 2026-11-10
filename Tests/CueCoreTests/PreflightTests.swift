@@ -154,13 +154,13 @@ private func picture(_ file: LogoFile, _ name: String = "") -> Picture {
 }
 
 @Suite struct PicturePreflightTests {
-    @Test func aPictureThatDidNotLoadWarnsWithItsNumberOrSlotNameAndFileName() {
+    @Test func aPictureThatDidNotLoadWarnsWithItsNameOrNumberAndFileName() {
         let files = ["a.png", "b.png", "c.png", "d.png"].map(image)
-        let pictures = [picture(files[0]), picture(files[1]), picture(files[2], "Sponsor"), picture(files[3])]
+        let pictures = [picture(files[0]), picture(files[1], "Event"), picture(files[2], "Sponsor"), picture(files[3])]
         #expect(Preflight.evaluate(pictures: pictures, images: Set(files.map(\.url)), probes: [:]) == [])
         #expect(
             Preflight.evaluate(pictures: pictures, images: [files[0].url], probes: [:]) == [
-                Finding(severity: .warn, kind: .logo, detail: "2 · b.png"),
+                Finding(severity: .warn, kind: .logo, detail: "Event · b.png"),
                 Finding(severity: .warn, kind: .slot, detail: "Sponsor · c.png"),
                 Finding(severity: .warn, kind: .slot, detail: "Slot 2 · d.png"),
             ])
