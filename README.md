@@ -88,3 +88,9 @@ From a release: download the `.dmg`, open it and drag Subito onto Applications (
 - [Control window prototype](design/control-window.html): clickable mock of the operator screen with example data.
   GitHub shows it as source only: clone the repo, then open `design/control-window.html` in any browser
   (`open design/control-window.html`). Works offline, no internet or Claude needed.
+
+## License
+
+Copyright (C) 2026 Bálint Réthelyi. Subito is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License v3.0, see [LICENSE](LICENSE). The logo's letter is Playfair Display (SIL Open
+Font License 1.1), see [design/logo](design/logo/README.md).
