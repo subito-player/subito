@@ -5,7 +5,7 @@
 Silent video player for live orchestras. One Mac, two screens: the laptop is the operator's control screen, the
 projector shows only video, black, a logo or the break screen. Keyboard first, boring and predictable.
 
-Status: v0.2.0 released, first rehearsal 2026-11-13. macOS 14+, Apple Silicon and Intel (universal).
+Status: v0.2.1 released, first rehearsal 2026-11-13. macOS 14+, Apple Silicon and Intel (universal).
 
 ## Build
 
