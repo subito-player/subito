@@ -8,7 +8,12 @@ struct KeysPanel: View {
     var body: some View {
         let s = model.strings
         VStack(alignment: .leading, spacing: 0) {
-            Text(s.keys).font(.system(size: 17, weight: .bold)).padding(14)
+            HStack {
+                Text(s.keys).font(.system(size: 17, weight: .bold))
+                Spacer()
+                BarButton(text: s.close, action: model.toggleKeys)
+            }
+            .padding(14)
             Palette.line.frame(height: 1)
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {

@@ -129,9 +129,10 @@ While an editor text field is being edited, keys go to the field (banner says so
 from then on keys drive the show again.
 
 **Control window (layout A, always dark):** top bar (mode toggle, concert title, Open, projector/power/audio/Hz
-status dots, last key, HU/EN, `?` for the key list); left 30% two-level list (movie headers, items, LIVE red, ARMED
-amber); right LIVE and NEXT previews side by side, the clip's brief (2 lines) under each title (NEXT has its own small scrub bar for
-parking), progress bar with white planned-end and amber tail-end markers, big "to planned end" time,
+status dots, last key, HU/EN, `?` for the key list, closed by `?` again or its Close button); left 30% two-level list
+(movie headers, items, LIVE red, ARMED amber); right LIVE and NEXT previews side by side, the clip's brief (2 lines)
+under each title (NEXT has its own small scrub bar for parking), progress bar with white planned-end and amber
+tail-end markers, big "to planned end" time,
 smaller "to clip end"; button area: a big GO on the left spanning two rows, row 1 Play, Restart, -30, -5, +5, +30,
 BLACK, Sound, row 2 "Logos and slots": Logo 1, Logo 2, slots 1 to 6, each with a thumbnail ("LOOP" for a video), its
 name, key and a DEFAULT or CONCERT tag, dashed "empty" when unset, a red dot when its file can't load, the amber ring
