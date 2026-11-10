@@ -75,7 +75,8 @@ nix shell nixpkgs#ffmpeg --command ffmpeg -i logo.gif -pix_fmt yuv420p -vf "scal
 
 From a release: download the `.dmg`, open it and drag Subito onto Applications (or unzip the `.zip`). A downloaded
 (quarantined) build opens via System Settings > Privacy & Security > Open Anyway, or
-`xattr -dr com.apple.quarantine <app>`.
+`xattr -dr com.apple.quarantine <app>`. In rehearsal mode the app tells you about newer releases (a badge in the top
+bar that opens the download); it never installs anything and never checks in concert mode.
 
 ## Docs
 

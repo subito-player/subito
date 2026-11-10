@@ -45,6 +45,6 @@ Built entirely by Claude agents. Rules adapted from the temporal hub. Spec: `des
 - Don't reinvent the wheel: standard library, then Apple frameworks, then (only if ~10 lines can't do it) one
   well-known library. Today: no dependencies.
 - Comments only for a non-obvious why: one line, present-tense rationale, never history or fix narration.
-- App name, command and bundle ID only in `app.env`; version only in `VERSION`.
+- App name, command, bundle ID and update repository only in `app.env`; version only in `VERSION`.
 - Formatting and lint: `swift format` from the toolchain.
 - Every file ends with exactly one newline.

@@ -47,6 +47,11 @@ struct Strings {
     var muted: String { pick("NÉMÍTVA", "MUTED") }
     var lastKey: String { pick("Utolsó gomb", "Last key") }
     var keys: String { pick("Billentyűk", "Keys") }
+
+    func updateBadge(_ version: AppVersion) -> String {
+        pick("Frissítés: v\(version)", "Update: v\(version)")
+    }
+
     var output: String { pick("Kimenet", "Output") }
     var automatic: String { pick("Automatikus", "Automatic") }
     var noExternalDisplay: String { pick("Nincs külső kijelző", "No external display") }
@@ -578,6 +583,30 @@ struct Strings {
         pick("Stresszteszt csak próba módban indítható", "The stress test runs in rehearsal mode only")
     }
     var noGoYet: String { pick("Még nem volt GO", "No GO yet") }
+    var updates: String { pick("Frissítések", "Updates") }
+    var checkForUpdates: String { pick("Frissítések keresése", "Check for updates") }
+    var checkingForUpdates: String { pick("Keresés...", "Checking...") }
+
+    func upToDate(_ version: AppVersion?) -> String {
+        let shown = version.map { " (v\($0))" } ?? ""
+        return pick("Naprakész\(shown)", "Up to date\(shown)")
+    }
+
+    func updateAvailable(_ version: AppVersion) -> String {
+        pick("Elérhető frissítés: v\(version)", "Update available: v\(version)")
+    }
+
+    func updateFailed(_ failure: Update.Failure) -> String {
+        let reason =
+            switch failure {
+            case .notConfigured: pick("ez a build nem tud frissítést keresni", "this build cannot check")
+            case .network: pick("nincs kapcsolat", "no connection")
+            case .http(let status): pick("a GitHub \(status) hibát adott", "GitHub answered \(status)")
+            case .malformed: pick("érthetetlen válasz", "unreadable answer")
+            case .noRelease: pick("nincs használható kiadás", "no usable release")
+            }
+        return pick("Nem sikerült a keresés: \(reason)", "Could not check: \(reason)")
+    }
 
     func memory(now: String, launch: String) -> String {
         pick("\(now) · induláskor \(launch)", "\(now) · at launch \(launch)")

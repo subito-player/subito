@@ -98,6 +98,7 @@ enum ManualCheck: CaseIterable {
 final class AppModel {
     static let noticeSeconds: TimeInterval = 5
     static let tickSeconds: TimeInterval = 0.1
+    static let updateCheckDelaySeconds: TimeInterval = 5
     static let keyMapFile = AppInfo.supportDirectory.appendingPathComponent("keymap.json")
     static let cheatSheetFile = AppInfo.supportDirectory.appendingPathComponent("cheatsheet.html")
     static let slotsFile = AppInfo.supportDirectory.appendingPathComponent(SlotSet.fileName)
@@ -108,6 +109,7 @@ final class AppModel {
     let slotsWithoutKeys: [Int]
     let advanced = Advanced()
     let converter = Converter()
+    let updates = UpdateChecker()
     private(set) var document: ShowDocument?
     // Logo 1, Logo 2 and slots 1 to 6 every concert starts from, and all a single movie shows.
     private(set) var defaultSlots: SlotSet
@@ -250,6 +252,11 @@ final class AppModel {
         // Common mode keeps the clock running while a slider or menu is tracking the mouse.
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
+        // Once per launch, after the show is up; checkForUpdates refuses it in concert.
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.updateCheckDelaySeconds))
+            self?.checkForUpdates()
+        }
     }
 
     var strings: Strings {
@@ -524,6 +531,25 @@ final class AppModel {
             Log.info("error: cannot write \(file.path): \(error.localizedDescription)")
             problems.append(.save(file: name, reason: error.localizedDescription))
         }
+    }
+
+    // Rehearsal only: no request, badge or browser hand-off ever happens in concert.
+    func checkForUpdates() {
+        guard state.mode == .rehearsal else { return }
+        updates.check()
+    }
+
+    var availableUpdate: (version: AppVersion, url: URL)? {
+        guard state.mode == .rehearsal, case .success(.available(let version, let url))? = updates.result else {
+            return nil
+        }
+        return (version, url)
+    }
+
+    func openUpdate() {
+        guard let update = availableUpdate else { return }
+        Log.info("update: opening \(update.url)")
+        NSWorkspace.shared.open(update.url)
     }
 
     func revealKeyMap() {
@@ -1044,6 +1070,7 @@ final class AppModel {
             if state.mode == .concert {
                 presentation = .fullscreen
                 converter.cancelAll(reason: "concert mode")
+                updates.cancel()
             }
             applyPresentation(reason: "mode \(state.mode.rawValue)")
             onModeChange(state.mode)

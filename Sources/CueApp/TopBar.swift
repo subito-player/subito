@@ -16,6 +16,7 @@ struct TopBar: View {
             ProjectorStatus(model: model).frame(maxWidth: 280, alignment: .leading).layoutPriority(1)
             AudioBadge(model: model).frame(maxWidth: 300, alignment: .leading).layoutPriority(1)
             Spacer(minLength: 8)
+            if let update = model.availableUpdate { UpdateBadge(model: model, version: update.version) }
             LastKeyView(model: model).layoutPriority(1)
             LanguageSwitch(model: model).fixedSize()
             KeysButton(model: model)
@@ -125,6 +126,28 @@ private struct AudioBadge: View {
             .padding(.vertical, 3)
             .foregroundStyle(on ? Color.black : Palette.dim)
             .background(on ? Palette.warn : Palette.raise, in: RoundedRectangle(cornerRadius: 4))
+    }
+}
+
+private struct UpdateBadge: View {
+    let model: AppModel
+    let version: AppVersion
+
+    var body: some View {
+        Button(action: model.openUpdate) {
+            Text(model.strings.updateBadge(version))
+                .font(.system(size: 15, weight: .bold))
+                .lineLimit(1)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .foregroundStyle(Color.white)
+                .background(Palette.confirm, in: RoundedRectangle(cornerRadius: 4))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .fixedSize()
+        .layoutPriority(1)
     }
 }
 
