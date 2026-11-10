@@ -1,9 +1,9 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="design/logo/subito-light.svg">
-  <img src="design/logo/subito-dark.svg" width="96" alt="Subito logo: an italic s with a green dot">
-</picture>
-
-# Subito
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="design/logo/subito-lockup-light.svg">
+    <img src="design/logo/subito-lockup-dark.svg" height="72" alt="Subito">
+  </picture>
+</h1>
 
 [![Build Status](https://app.bitrise.io/app/ac688969-4ec3-4e8f-9769-5f2a9ae909bc/status.svg?token=ArHnvXQT4N79GP5lrqjzXw&branch=main)](https://app.bitrise.io/app/ac688969-4ec3-4e8f-9769-5f2a9ae909bc)
 
