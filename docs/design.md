@@ -217,8 +217,10 @@ the app is dead the projector shows the desktop: checklist says "switch to backu
 - Logs: `~/Library/Logs/<name>/YYYY-MM-DD.log`, plain lines, keep 14 days. State: `~/Library/Application Support/<bundle id>/`.
 - Refresh rate guidance (doc): prefer 23.976 > 47.95 > 71.93 > 24 > 48 > 72 > 60 Hz on the projector. App never
   changes display modes itself.
-- Port note: KMP/Compose would share only `CueCore`-sized logic (~15%, claim holds); no video, window or display
-  control. `CueCore` is Foundation-only and could compile with Swift on Windows. Windows player decided later.
+- Port note (2026-11-10): `CueCore` (~3,200 lines + tests) is Foundation-only and ports; `CueApp` (~6,300 lines:
+  AppKit, SwiftUI, AVFoundation, CoreGraphics displays) does not. If a Windows version is needed: one app for Windows
+  (and Linux later) in Qt or Rust + Slint with libmpv, `CueCore` ported with its tests as the spec, the Mac app kept
+  as is. First a 1-day spike on a real projector: two mpv players, GO with no black frame, unplug/replug.
 
 ## v0.1 build order (cut from the bottom if Thursday comes)
 
