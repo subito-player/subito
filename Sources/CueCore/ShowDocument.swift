@@ -57,6 +57,20 @@ public enum Edit: Equatable, Sendable {
     case setLogo(Place, Int)
     // A converted sibling replaces the clip's file; the list keeps the title it showed.
     case replaceClipFile(Place, URL)
+    // The concert's logo number n (1-based); nil clears it. Paths inside the show folder are stored relative.
+    case setLogoFile(Int, Logo?)
+}
+
+// A concert logo resolved against the concert file.
+public enum LogoFile: Equatable, Sendable {
+    case image(URL)
+    case loop(URL)
+
+    public var url: URL {
+        switch self {
+        case .image(let url), .loop(let url): url
+        }
+    }
 }
 
 public enum Addition: Sendable {
@@ -123,12 +137,12 @@ public struct ShowDocument: Equatable, Sendable {
         concert?.title ?? movies[url]?.title ?? ""
     }
 
-    // Loop logos resolve too, so logo numbers stay aligned although v0.1 shows only images.
-    public var logos: [URL] {
+    // nil for a logo number with no file, which shows black.
+    public var logos: [LogoFile?] {
         (concert?.logos ?? []).map { logo in
-            switch logo {
-            case .image(let path), .loop(let path): ShowLoader.resolve(path, relativeTo: url)
-            }
+            guard !logo.path.isEmpty else { return nil }
+            let file = ShowLoader.resolve(logo.path, relativeTo: url)
+            return if case .loop = logo { .loop(file) } else { .image(file) }
         }
     }
 
@@ -236,6 +250,16 @@ public struct ShowDocument: Equatable, Sendable {
                 clip.file = folder + file.lastPathComponent
                 if clip.resolvedTitle != title { clip.title = title }
             }
+        case .setLogoFile(let number, let logo):
+            guard var logos = concert?.logos, number >= 1 else { return .failure(.noSuchItem) }
+            // An empty path keeps the numbers after it in place; v0.1 reads it as a logo that shows black.
+            let none = Logo.image("")
+            while logos.count < number { logos.append(none) }
+            logos[number - 1] = logo.flatMap { $0.path.isEmpty ? nil : relative($0) } ?? none
+            while logos.last?.path.isEmpty == true { logos.removeLast() }
+            var document = self
+            document.concert?.logos = logos
+            return .success(unchanged(document, file: url))
         }
     }
 
@@ -324,6 +348,11 @@ public struct ShowDocument: Equatable, Sendable {
 
     private func oldOrder(_ count: Int) -> [Int?] {
         (0..<count).map { $0 }
+    }
+
+    private func relative(_ logo: Logo) -> Logo {
+        let path = ShowLoader.relativePath(to: ShowLoader.resolve(logo.path, relativeTo: url), from: url)
+        return if case .loop = logo { .loop(path) } else { .image(path) }
     }
 
     private static func text(_ value: String) -> String? {

@@ -71,7 +71,10 @@ extension ShowDocument {
                 Row(kind: .cue(6), place: place(concertURL, 4), movie: nil),
             ])
         #expect(document.title == "Gala")
-        #expect(document.logos.map(\.path) == ["/show/logos/o.png", "/show/logos/e.mp4"])
+        #expect(
+            document.logos == [
+                .image(URL(fileURLWithPath: "/show/logos/o.png")), .loop(URL(fileURLWithPath: "/show/logos/e.mp4")),
+            ])
     }
 
     @Test func singleMovieHeaderBelongsToNoFile() {
@@ -375,6 +378,69 @@ extension ShowDocument {
                 == .noSuchItem)
         #expect(document.apply(.renameMovie(concertURL, "x"), live: nil).refusal == .noSuchItem)
         #expect(single().apply(.renameConcert("x"), live: nil).refusal == .noSuchItem)
+    }
+}
+
+@Suite struct LogoFileTests {
+    private func logos(_ result: EditResult) -> [Logo] {
+        result.document.concert?.logos ?? []
+    }
+
+    @Test func setReplaceAndClearChangeOnlyTheConcertsLogos() throws {
+        let document = gala()
+        let set = try document.apply(.setLogoFile(1, .loop("/show/logos/intro.mp4")), live: 6).edited
+        #expect(logos(set) == [.loop("logos/intro.mp4"), .loop("logos/e.mp4")])
+        #expect(set.document.logos.first == .loop(URL(fileURLWithPath: "/show/logos/intro.mp4")))
+        #expect(set.changed == [concertURL])
+        #expect(set.indexMap == Array(0..<7))
+        #expect(set.document.cues == document.cues)
+        let replaced = try set.document.apply(.setLogoFile(2, .image("/show/logos/e.png")), live: nil).edited
+        #expect(logos(replaced) == [.loop("logos/intro.mp4"), .image("logos/e.png")])
+        let cleared = try replaced.document.apply(.setLogoFile(1, nil), live: nil).edited
+        #expect(logos(cleared) == [.image(""), .image("logos/e.png")])
+        #expect(cleared.document.logos == [nil, .image(URL(fileURLWithPath: "/show/logos/e.png"))])
+        #expect(try replaced.document.apply(.setLogoFile(1, .loop("")), live: nil).edited.document == cleared.document)
+    }
+
+    @Test func aFileInsideTheShowFolderIsStoredRelativeAndOneOutsideAbsolute() throws {
+        let inside = try gala().apply(.setLogoFile(1, .image("/show/art/o.png")), live: nil).edited
+        let relative = try gala().apply(.setLogoFile(1, .image("art/o.png")), live: nil).edited
+        let outside = try gala().apply(.setLogoFile(1, .loop("/Volumes/Stage/intro.mp4")), live: nil).edited
+        #expect(logos(inside).first == .image("art/o.png"))
+        #expect(logos(relative).first == .image("art/o.png"))
+        #expect(logos(outside).first == .loop("/Volumes/Stage/intro.mp4"))
+    }
+
+    @Test func theListGrowsToTheNumberAndClearingTheLastShrinksIt() throws {
+        let empty = ShowDocument(LoadedConcert(concert: Concert(title: "Gala"), url: concertURL, movies: [:]))
+        let second = try empty.apply(.setLogoFile(2, .loop("/show/e.mp4")), live: nil).edited
+        #expect(logos(second) == [.image(""), .loop("e.mp4")])
+        #expect(second.document.logos == [nil, .loop(URL(fileURLWithPath: "/show/e.mp4"))])
+        let both = try second.document.apply(.setLogoFile(1, .image("/show/o.png")), live: nil).edited
+        let shrunk = try both.document.apply(.setLogoFile(2, nil), live: nil).edited
+        #expect(logos(shrunk) == [.image("o.png")])
+        // A gap left at the end goes too, so no number without a file trails the list.
+        #expect(logos(try second.document.apply(.setLogoFile(2, nil), live: nil).edited).isEmpty)
+        #expect(logos(try shrunk.document.apply(.setLogoFile(3, nil), live: nil).edited) == [.image("o.png")])
+    }
+
+    @Test func aGapIsSavedAsAnEmptyPathAndLoadsBack() throws {
+        try withTempDir { dir in
+            let concert = dir.appendingPathComponent("gala.concert.json")
+            let loop = dir.appendingPathComponent("logos/e.mp4")
+            try write("", to: loop)
+            try ShowLoader.save(Concert(title: "Gala"), to: concert)
+            let result = try ShowDocument.load(concert).apply(.setLogoFile(2, .loop(loop.path)), live: nil).edited
+            for file in result.changed { try result.document.save(file) }
+            let json = try JSONSerialization.jsonObject(with: Data(contentsOf: concert)) as? [String: Any]
+            #expect((json?["logos"] as? [Any])?.first as? String == "")
+            #expect(try ShowDocument.load(concert).concert?.logos == [.image(""), .loop("logos/e.mp4")])
+        }
+    }
+
+    @Test func aSingleMovieHasNoLogosAndNumbersStartAtOne() {
+        #expect(single().apply(.setLogoFile(1, .image("/show/o.png")), live: nil).refusal == .noSuchItem)
+        #expect(gala().apply(.setLogoFile(0, nil), live: nil).refusal == .noSuchItem)
     }
 }
 

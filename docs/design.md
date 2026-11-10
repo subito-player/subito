@@ -50,7 +50,9 @@ also generate movie files.
 - Clip fields except `type` and `file` are optional. `number` defaults to the `NN_` filename prefix, `title` to the
   rest of the filename ("the_greatest_show" -> "The Greatest Show"). No `planned_end_s` = no markers.
 - Concert refers to movies by file, so fixing a movie fixes every concert using it.
-- Logo entries are image paths in v0.1. Format reserves `{ "loop": "file.mp4" }` for looping logos (v0.2).
+- Logo entries are an image path or `{ "loop": "file.mp4" }`: a muted video that loops seamlessly and restarts from
+  frame 0 each time it is shown. An empty string is a number with no file: it shows black, and preflight warns when a
+  logo cue uses it. The concert inspector picks logo 1 and 2 (image or video).
 - "Open folder" builds a movie from `NN_name.mp4` files and saves `<folder>.movie.json` next to them.
 
 ## Behaviour

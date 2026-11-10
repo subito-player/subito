@@ -30,6 +30,9 @@ final class OutputWindow: NSWindow {
     private let breakCountdown = CATextLayer()
     private let coverLogo = CALayer()
     private let coverBlack = CALayer()
+    // One fixed layer per loop file under each logo layer, so showing a loop never re-points a layer.
+    private var baseLoops: [URL: AVPlayerLayer] = [:]
+    private var coverLoops: [URL: AVPlayerLayer] = [:]
     private var titleText = ""
     private var countdownText: String?
 
@@ -143,11 +146,44 @@ final class OutputWindow: NSWindow {
             height: size.height)
     }
 
-    func showBase(clip: Slot?, logo: CGImage?, breakScreen: Bool) {
+    func addLoop(_ url: URL, player: AVPlayer) {
+        withoutAnimation {
+            baseLoops[url] = loopLayer(player, in: baseLogo)
+            coverLoops[url] = loopLayer(player, in: coverLogo)
+        }
+    }
+
+    func removeLoop(_ url: URL) {
+        withoutAnimation {
+            baseLoops.removeValue(forKey: url)?.removeFromSuperlayer()
+            coverLoops.removeValue(forKey: url)?.removeFromSuperlayer()
+        }
+    }
+
+    func loopReady(_ url: URL, cover: Bool) -> Bool {
+        (cover ? coverLoops : baseLoops)[url]?.isReadyForDisplay ?? false
+    }
+
+    private func loopLayer(_ player: AVPlayer, in parent: CALayer) -> AVPlayerLayer {
+        let layer = AVPlayerLayer(player: player)
+        layer.videoGravity = .resizeAspect
+        layer.backgroundColor = CGColor.black
+        layer.isHidden = true
+        layer.frame = parent.bounds
+        parent.addSublayer(layer)
+        return layer
+    }
+
+    private func paint(_ picture: LogoPicture?, on layer: CALayer, loops: [URL: AVPlayerLayer]) {
+        if case .image(let image)? = picture { layer.contents = image } else { layer.contents = nil }
+        for (url, loop) in loops { loop.isHidden = picture?.loop != url }
+    }
+
+    func showBase(clip: Slot?, logo: LogoPicture?, breakScreen: Bool) {
         withoutAnimation {
             playerA.isHidden = clip != .a
             playerB.isHidden = clip != .b
-            baseLogo.contents = logo
+            paint(logo, on: baseLogo, loops: baseLoops)
             baseLogo.isHidden = logo == nil
             breakLayer.isHidden = !breakScreen
             // A new base ends a cover fade, so nothing ever dissolves over the item GO brings in.
@@ -156,20 +192,20 @@ final class OutputWindow: NSWindow {
     }
 
     // Model values are always the final state; a fade only animates the cover logo's opacity towards them.
-    func showCover(logo: CGImage?, black: Bool, fade: TimeInterval) {
+    func showCover(logo: LogoPicture?, black: Bool, fade: TimeInterval) {
         withoutAnimation {
             let visible = fade > 0 && !coverLogo.isHidden
             let from: Float = visible ? coverLogo.presentation()?.opacity ?? coverLogo.opacity : 0
             coverLogo.removeAnimation(forKey: Self.fadeKey)
             coverBlack.isHidden = !black
             guard fade > 0 else {
-                coverLogo.contents = logo
+                paint(logo, on: coverLogo, loops: coverLoops)
                 coverLogo.isHidden = logo == nil
                 coverLogo.opacity = 1
                 return
             }
-            // Fading out keeps the old image until the layer is transparent.
-            if let logo { coverLogo.contents = logo }
+            // Fading out keeps the old picture until the layer is transparent.
+            if let logo { paint(logo, on: coverLogo, loops: coverLoops) }
             let to: Float = logo == nil ? 0 : 1
             coverLogo.isHidden = false
             coverLogo.opacity = to
@@ -193,7 +229,8 @@ final class OutputWindow: NSWindow {
         let bounds = contentView?.bounds ?? .zero
         let scale = backingScaleFactor
         withoutAnimation {
-            for layer in [playerA, playerB, baseLogo, breakLayer, coverLogo, coverBlack] {
+            let loops: [CALayer] = Array(baseLoops.values) + Array(coverLoops.values)
+            for layer in [playerA, playerB, baseLogo, breakLayer, coverLogo, coverBlack] + loops {
                 layer.frame = bounds
             }
             breakTitle.contentsScale = scale

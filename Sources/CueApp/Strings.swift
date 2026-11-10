@@ -219,6 +219,20 @@ struct Strings {
             "This show has no logos (the concert's logo list is empty)")
     }
     var nothingToSet: String { pick("Nincs mit beállítani", "Nothing to set") }
+    var logoFile: String { pick("Kép vagy videó…", "Image or video…") }
+    var noLogoFile: String { pick("nincs fájl", "no file") }
+    var choose: String { pick("Kiválasztás", "Choose") }
+    var movieHasNoLogos: String {
+        pick(
+            "Önálló filmnek nincs logója, a logók a koncerthez tartoznak",
+            "A single movie has no logos, a concert does")
+    }
+
+    func logoFileMessage(_ number: Int) -> String {
+        pick(
+            "Logó \(number): kép, vagy hang nélkül ismétlődő videó",
+            "Logo \(number): an image, or a video that loops silently")
+    }
 
     func editNotice(_ notice: EditNotice) -> String {
         switch notice {

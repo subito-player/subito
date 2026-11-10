@@ -14,7 +14,7 @@ struct CueList: View {
                 Palette.line.frame(height: 1)
                 AddBar(model: model, pickers: pickers)
                 Palette.line.frame(height: 1)
-                Inspector(model: model)
+                Inspector(model: model, pickers: pickers)
             }
         }
     }
@@ -245,11 +245,13 @@ private struct AddBar: View {
 // Fields commit on Enter, on a click elsewhere, or before any other edit; Esc puts the saved value back.
 private struct Inspector: View {
     let model: AppModel
+    let pickers: Pickers
 
     var body: some View {
         let s = model.strings
         VStack(alignment: .leading, spacing: 8) {
             field(model.document?.concert == nil ? s.movieTitle : s.concertTitle, .showTitle)
+            logos(s)
             if let place = model.selection, let item = model.document?.item(at: place) {
                 Palette.line.frame(height: 1)
                 fields(place, item, s)
@@ -257,6 +259,38 @@ private struct Inspector: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func logos(_ s: Strings) -> some View {
+        if model.document?.concert == nil {
+            Text(s.movieHasNoLogos).foregroundStyle(Palette.dim).lineLimit(2)
+        } else {
+            let logos = model.document?.logos ?? []
+            ForEach(1...2, id: \.self) { number in
+                let file = logos.indices.contains(number - 1) ? logos[number - 1] : nil
+                HStack(spacing: 6) {
+                    Text("\(s.logo) \(number)").foregroundStyle(Palette.dim).frame(width: 130, alignment: .leading)
+                    BarButton(text: s.logoFile) { pickers.logoFile(number) }
+                    Button {
+                        model.setLogoFile(number, nil)
+                    } label: {
+                        Image(systemName: "xmark.circle")
+                            .foregroundStyle(Palette.dim)
+                            .padding(4)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .focusable(false)
+                    .disabled(file == nil)
+                    .opacity(file == nil ? 0.4 : 1)
+                    Text(file?.url.lastPathComponent ?? s.noLogoFile)
+                        .foregroundStyle(file == nil ? Palette.dim : Palette.fg)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+        }
     }
 
     @ViewBuilder

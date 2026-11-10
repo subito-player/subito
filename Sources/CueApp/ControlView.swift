@@ -38,6 +38,7 @@ struct Pickers {
     var newConcert: () -> Void
     var addClips: () -> Void
     var addMovie: () -> Void
+    var logoFile: (Int) -> Void
 }
 
 struct ControlView: View {

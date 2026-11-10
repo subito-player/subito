@@ -13,6 +13,8 @@ time. Note every surprise in the log at the bottom; it drives v0.2.
    2. B, B during a clip: instant cuts. L, L: the logo fades in and out (0.5 s). Shift+L while logo 1 is up: instant
       swap. GO while a logo is up: instant cut, no logo dissolving over the new clip. Mash L: always ends fully logo or
       fully picture. The clip keeps running underneath throughout.
+      Shift+L (sample logo 2 is a looping video): fades in from its first frame, the orbiting square never jumps at
+      the loop point, GO onto the "Logo 2" cue is an instant cut with no black frame.
    3. Space, arrows, Home, Opt+Right on the next clip, then GO: starts from the parked point. Park and GO within a
       frame or two: the frame counter must start at the parked frame, never show the previous one.
    4. Let a clip end: last frame holds. GO to the break: countdown, title holds at 0:00.

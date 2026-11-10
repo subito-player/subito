@@ -95,7 +95,7 @@ struct Previews: View {
     private func liveContent(_ state: ShowState) -> some View {
         switch state.base {
         case .black: EmptyView()
-        case .logo(let number): LogoPreview(image: model.engine.logo(number))
+        case .logo: LogoPreview(picture: model.engine.basePicture, engine: model.engine)
         case .breakScreen: BreakPreview(title: model.engine.breakTitle, countdown: model.breakCountdown)
         case .clip: EmptyView()
         }
@@ -108,7 +108,7 @@ struct Previews: View {
             case .clip, .black:
                 EmptyView()
             case .logo(let number):
-                LogoPreview(image: model.engine.logo(number))
+                LogoPreview(picture: model.engine.logo(number), engine: model.engine)
             case .breakScreen(let item):
                 let now = Date()
                 BreakPreview(
@@ -150,11 +150,17 @@ private struct Screen<Content: View>: View {
 }
 
 private struct LogoPreview: View {
-    let image: CGImage?
+    let picture: LogoPicture?
+    let engine: PlaybackEngine
 
     var body: some View {
-        if let image {
+        switch picture {
+        case .image(let image)?:
             Image(decorative: image, scale: 1).resizable().aspectRatio(contentMode: .fit)
+        case .loop(let url)?:
+            if let player = engine.loopPlayer(url) { PlayerPreview(player: player) }
+        case nil:
+            EmptyView()
         }
     }
 }
@@ -189,7 +195,10 @@ private struct PlayerPreview: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ view: PlayerLayerView, context: Context) {}
+    // Slot previews always get the same player; a logo preview may get another loop's.
+    func updateNSView(_ view: PlayerLayerView, context: Context) {
+        if view.playerLayer.player !== player { view.playerLayer.player = player }
+    }
 }
 
 private final class PlayerLayerView: NSView {

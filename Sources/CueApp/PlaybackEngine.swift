@@ -11,6 +11,16 @@ enum LoadFailure: Equatable {
     case pictureUnconfirmed
 }
 
+// What a logo number shows on the output.
+enum LogoPicture {
+    case image(CGImage)
+    case loop(URL)
+
+    var loop: URL? {
+        if case .loop(let url) = self { url } else { nil }
+    }
+}
+
 @MainActor
 final class PlaybackEngine: Player {
     static let displayReadyTimeout: TimeInterval = 3
@@ -26,7 +36,15 @@ final class PlaybackEngine: Player {
 
     private let playerA = AVPlayer()
     private let playerB = AVPlayer()
-    private var logos: [CGImage?] = []
+    private var logoFiles: [LogoFile?] = []
+    // The image logos that decoded.
+    private(set) var images: [URL: CGImage] = [:]
+    private var loops: [URL: LoopLogo] = [:]
+    // What the base logo layer shows, so LIVE matches the projector after an edit or Open.
+    private(set) var basePicture: LogoPicture?
+    // The loops the output shows as base and as cover; a cover fading out no longer counts.
+    private var baseLoop: URL?
+    private var coverLoop: URL?
     private var base: Base = .black
     // What the cover layers show, a logo that cannot load being black.
     private var shownCover: Cover?
@@ -80,17 +98,39 @@ final class PlaybackEngine: Player {
         return (position.isFinite ? min(max(position, 0), duration) : 0, duration)
     }
 
-    // Layers already showing a logo keep their image; the new ones apply from the next cover or GO.
-    func setLogos(_ urls: [URL]) {
-        logos = urls.enumerated().map { index, url in
-            let image = PreflightRunner.logoImage(at: url)
-            if image == nil { Log.info("logo \(index + 1) cannot be loaded: \(url.path)") }
-            return image
+    // Layers already showing a logo keep it; the new ones apply from the next cover or GO. One player per loop file.
+    func setLogos(_ files: [LogoFile?]) {
+        logoFiles = files
+        // Decoded images stay; only a file new to the list is decoded.
+        let wanted = Set(files.compactMap { file -> URL? in if case .image(let url)? = file { url } else { nil } })
+        images = images.filter { wanted.contains($0.key) }
+        for (index, file) in files.enumerated() {
+            switch file {
+            case .image(let url)? where images[url] == nil:
+                images[url] = PreflightRunner.logoImage(at: url)
+                if images[url] == nil { Log.info("logo \(index + 1) cannot be loaded: \(url.path)") }
+            case .loop(let url)? where loops[url] == nil:
+                let loop = LoopLogo(url: url)
+                loops[url] = loop
+                window.addLoop(url, player: loop.player)
+                Log.info("logo \(index + 1) loops \(url.path)")
+            default:
+                break
+            }
+        }
+        scheduleDrop()
+    }
+
+    func logo(_ number: Int) -> LogoPicture? {
+        guard logoFiles.indices.contains(number - 1), let file = logoFiles[number - 1] else { return nil }
+        switch file {
+        case .image(let url): return images[url].map(LogoPicture.image)
+        case .loop(let url): return .loop(url)
         }
     }
 
-    func logo(_ number: Int) -> CGImage? {
-        logos.indices.contains(number - 1) ? logos[number - 1] : nil
+    func loopPlayer(_ url: URL) -> AVPlayer? {
+        loops[url]?.player
     }
 
     // Loads run after the commit, so the old live player never swaps items before its layer hides; returns switch ms.
@@ -194,11 +234,13 @@ final class PlaybackEngine: Player {
         self.base = base
         breakTimer?.invalidate()
         breakTimer = nil
+        basePicture = nil
         switch base {
         case .black:
             window.showBase(clip: nil, logo: nil, breakScreen: false)
         case .logo(let number):
-            window.showBase(clip: nil, logo: logo(number), breakScreen: false)
+            basePicture = logo(number)
+            window.showBase(clip: nil, logo: basePicture, breakScreen: false)
         case .clip(let slot):
             window.showBase(clip: slot, logo: nil, breakScreen: false)
         case .breakScreen(let item, _):
@@ -207,14 +249,49 @@ final class PlaybackEngine: Player {
             window.showBase(clip: nil, logo: nil, breakScreen: true)
             if item.countdown { startBreakTimer() }
         }
+        baseLoop = basePicture?.loop
+        // A new base also cuts a cover fade, so nothing is left fading out.
+        syncLoops(fadeOut: 0)
     }
 
     func setCover(_ cover: Cover?) {
-        let image: CGImage? = if case .logo(let number) = cover { logo(number) } else { nil }
-        let shown: Cover? = cover != nil && image == nil ? .black : cover
+        let picture: LogoPicture? = if case .logo(let number) = cover { logo(number) } else { nil }
+        let shown: Cover? = cover != nil && picture == nil ? .black : cover
         let fade = ShowState.fadesCover(from: shownCover, to: shown, withGo: applyingGo)
-        window.showCover(logo: image, black: shown == .black, fade: fade ? ShowState.logoFade : 0)
+        window.showCover(logo: picture, black: shown == .black, fade: fade ? ShowState.logoFade : 0)
         shownCover = shown
+        coverLoop = picture?.loop
+        syncLoops(fadeOut: fade && picture == nil ? ShowState.logoFade : 0)
+    }
+
+    // Restart-on-show: a loop runs only while the output shows it and rewinds to its first frame once hidden.
+    private func syncLoops(fadeOut: TimeInterval) {
+        for (url, loop) in loops {
+            guard url == baseLoop || url == coverLoop else {
+                loop.hide(after: fadeOut)
+                continue
+            }
+            if !loop.running, !window.loopReady(url, cover: url != baseLoop) {
+                Log.deferred("logo loop \(url.lastPathComponent) shown with its layer NOT ready for display")
+            }
+            loop.show()
+        }
+        scheduleDrop()
+    }
+
+    // After the switch commits, so tearing a loop down never runs inside a GO or cover transaction.
+    private func scheduleDrop() {
+        DispatchQueue.main.async { [weak self] in MainActor.assumeIsolated { self?.dropUnusedLoops() } }
+    }
+
+    // A loop the logo list no longer names goes once it has stopped, never while the output still shows it.
+    private func dropUnusedLoops() {
+        let used = Set(logoFiles.compactMap { file -> URL? in if case .loop(let url)? = file { url } else { nil } })
+        for (url, loop) in loops where !loop.running && !used.contains(url) {
+            loop.stop()
+            loops[url] = nil
+            window.removeLoop(url)
+        }
     }
 
     func setMuted(_ muted: Bool) {
@@ -350,6 +427,101 @@ final class PlaybackEngine: Player {
 
     private nonisolated static func onMain(_ body: @escaping @MainActor () -> Void) {
         DispatchQueue.main.async { MainActor.assumeIsolated(body) }
+    }
+}
+
+// One muted, seamless loop per logo file; AVPlayerLooper keeps a fixed set of items, so memory stays flat.
+@MainActor
+private final class LoopLogo {
+    let player = AVQueuePlayer()
+    private let name: String
+    private let looper: AVPlayerLooper
+    private var observations: [NSKeyValueObservation] = []
+    // Bumped by every show and hide, so a superseded rewind never runs.
+    private var generation = 0
+    private var rewinds = 0
+    // The rewind seek still in flight; a show waits for it.
+    private var pendingRewind: Int?
+    private var prerolled = false
+    // Playing, or still visible while a fade-out ends.
+    private(set) var running = false
+
+    init(url: URL) {
+        name = url.lastPathComponent
+        player.isMuted = true
+        player.automaticallyWaitsToMinimizeStalling = false
+        looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(asset: AVURLAsset(url: url)))
+        observations.append(
+            player.observe(\.currentItem?.status, options: [.initial, .new]) { [weak self] _, _ in
+                DispatchQueue.main.async { MainActor.assumeIsolated { self?.preroll() } }
+            })
+        observations.append(
+            looper.observe(\.status, options: [.new]) { [name] looper, _ in
+                guard looper.status == .failed else { return }
+                Log.info("logo loop \(name) cannot play: \(looper.error?.localizedDescription ?? "unknown error")")
+            })
+    }
+
+    func show() {
+        generation += 1
+        guard !running else { return }
+        running = true
+        // A show right after a hide plays once the rewind lands, never from a mid-loop frame that then jumps.
+        if pendingRewind == nil { player.play() }
+    }
+
+    // After any fade-out, so a visible loop never jumps back to its first frame.
+    func hide(after delay: TimeInterval) {
+        guard running else { return }
+        generation += 1
+        let current = generation
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            MainActor.assumeIsolated { self?.rewind(current) }
+        }
+    }
+
+    func stop() {
+        observations = []
+        looper.disableLooping()
+        player.pause()
+        player.removeAllItems()
+    }
+
+    private func rewind(_ current: Int) {
+        guard generation == current, running else { return }
+        running = false
+        prerolled = false
+        player.pause()
+        // A loop that never loaded has nothing to rewind, and its seek might never report back.
+        guard player.currentItem != nil else { return }
+        rewinds += 1
+        let id = rewinds
+        pendingRewind = id
+        player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] finished in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.rewound(id, finished: finished) } }
+        }
+    }
+
+    // Only the latest seek counts: a newer one cancels the older, which then reports unfinished.
+    private func rewound(_ id: Int, finished: Bool) {
+        guard pendingRewind == id else { return }
+        pendingRewind = nil
+        if running {
+            player.play()
+        } else if finished {
+            preroll()
+        }
+    }
+
+    // Decoded ahead, so the next show starts on the first frame at once; preroll raises unless ready and paused.
+    private func preroll() {
+        guard !prerolled, !running, pendingRewind == nil, player.currentItem?.status == .readyToPlay,
+            player.status == .readyToPlay, player.rate == 0
+        else { return }
+        prerolled = true
+        player.preroll(atRate: 1) { [name] finished in
+            Log.deferred("logo loop \(name) \(finished ? "prerolled" : "preroll interrupted")")
+        }
     }
 }
 
