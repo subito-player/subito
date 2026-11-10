@@ -24,6 +24,10 @@ define INFO_PLIST
     <string>$(PREVIOUS_BUNDLE_ID)</string>
     <key>CFBundleExecutable</key>
     <string>$(APP_NAME)</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -70,6 +74,10 @@ app:
 	cp "$$(swift build -c release $(ARCHS) --product CueApp --show-bin-path)/CueApp" "$(APP_DIR)/Contents/MacOS/$(APP_NAME)"
 	printf '%s\n' "$$INFO_PLIST" > "$(APP_DIR)/Contents/Info.plist"
 	plutil -lint "$(APP_DIR)/Contents/Info.plist"
+	# Icon Composer source: Assets.car for macOS 26 appearances, AppIcon.icns for macOS 14 and 15.
+	xcrun actool --compile "$(APP_DIR)/Contents/Resources" --platform macosx --minimum-deployment-target 14.0 \
+		--app-icon AppIcon --output-partial-info-plist build/AppIcon.plist --output-format human-readable-text \
+		--errors --warnings design/AppIcon.icon
 	codesign --force --options runtime --sign "$(SIGN_ID)" "$(APP_DIR)"
 	codesign --verify --strict "$(APP_DIR)"
 
