@@ -70,6 +70,17 @@ import Testing
         }
     }
 
+    @Test func keypadDigitsToggleSlotsAndNeverArm() throws {
+        #expect(try action("Num1") == .command(.toggleCover(.logo(3))))
+        #expect(try action("Num6") == .command(.toggleCover(.logo(8))))
+        #expect(try action("1") == .command(.armNumber(1)))
+        for digit in [0, 7, 8, 9] {
+            #expect(try action("Num\(digit)") == nil)
+        }
+        #expect(try action("Opt+Shift+Num1") == .command(.toggleCover(.logo(3))))
+        #expect(map.slotsWithoutKeys.isEmpty)
+    }
+
     @Test func escapeAndCmdQAreNotBound() throws {
         #expect(try action("Escape") == nil)
         #expect(try action("Cmd+Q") == nil)
@@ -86,7 +97,6 @@ import Testing
         #expect(try action("Ctrl+Shift+B") == nil)
     }
 
-    // KeyInput gives keypad digits the same unmodified chord as the top row, so "4" covers both.
     @Test(arguments: ["Opt+Shift+4", "Opt+4", "Shift+4", "Opt+Shift+0"])
     func strayShiftOrOptionNeverArmsADigit(text: String) throws {
         #expect(try action(text) == nil)
@@ -110,6 +120,8 @@ import Testing
             "seek:abc"
         ),
         (#"{ "format": 1, "keys": { "1": "arm" } }"#, .unknownAction(chord: "1", action: "arm"), "\"arm\""),
+        (#"{ "format": 1, "keys": { "Num7": "slot:7" } }"#, .unknownAction(chord: "Num7", action: "slot:7"), "slot:7"),
+        (#"{ "format": 1, "keys": { "Num0": "slot:0" } }"#, .unknownAction(chord: "Num0", action: "slot:0"), "slot:0"),
         (#"{ "format": 2, "keys": { "B": "hologram" } }"#, .unsupportedFormat(2), "format 2"),
         (#"{ "format": 1 }"#, .invalidJSON("missing \"keys\""), "keys"),
     ])
@@ -144,7 +156,7 @@ private func chords(_ texts: String...) throws -> [KeyChord] {
 
     @Test func everyBoundActionIsListedOnce() {
         let actions = KeyMap.standard.actions
-        #expect(actions.count == 28)
+        #expect(actions.count == 34)
         #expect(actions.filter { $0 == .command(.go) }.count == 1)
         #expect(actions.contains(.toggleAdvanced))
     }
@@ -165,6 +177,8 @@ private func chords(_ texts: String...) throws -> [KeyChord] {
         #expect(try labels("KeypadEnter", .en) == "Keypad Enter")
         #expect(try labels("Shift+PageDown", .hu) == "Shift+Page Down")
         #expect(try labels("Escape", .en) == "Esc")
+        #expect(try labels("Num1", .hu) == "Num 1")
+        #expect(try labels("Num1", .en) == "Keypad 1")
     }
 
     @Test func advancedViewAvoidsTheDockShortcut() throws {
@@ -207,10 +221,55 @@ private func chords(_ texts: String...) throws -> [KeyChord] {
         }
     }
 
+    // The show Mac's keymap.json was written by v0.2 and never edited.
+    @Test func theV02DefaultIsUpgradedSoSlotsHaveKeys() throws {
+        try withTempDir { dir in
+            let url = dir.appendingPathComponent("keymap.json")
+            try write(KeyMap.v02DefaultJSON + "\n", to: url)
+            let (old, _) = KeyMap.load(from: url)
+            #expect(old.slotsWithoutKeys == Array(1...6))
+            #expect(try KeyMap.installDefault(at: url))
+            #expect(try String(contentsOf: url, encoding: .utf8) == KeyMap.defaultJSON + "\n")
+            let (map, error) = KeyMap.load(from: url)
+            #expect(error == nil)
+            #expect(map == KeyMap.standard)
+            #expect(map.slotsWithoutKeys.isEmpty)
+            #expect(try KeyMap.installDefault(at: url) == false)
+        }
+    }
+
+    @Test func theV02DefaultIsRecognisedByItsKeysNotItsText() throws {
+        try withTempDir { dir in
+            let url = dir.appendingPathComponent("keymap.json")
+            let keys = try #require(
+                JSONSerialization.jsonObject(with: Data(KeyMap.v02DefaultJSON.utf8)) as? [String: Any])
+            try JSONSerialization.data(withJSONObject: keys, options: [.sortedKeys]).write(to: url)
+            #expect(try KeyMap.installDefault(at: url))
+            #expect(KeyMap.load(from: url).map.slotsWithoutKeys.isEmpty)
+        }
+    }
+
+    @Test func aCustomisedV02FileIsKeptAndSaysSlotsHaveNoKeys() throws {
+        try withTempDir { dir in
+            let url = dir.appendingPathComponent("keymap.json")
+            let customised = KeyMap.v02DefaultJSON.replacingOccurrences(
+                of: #""B": "black""#, with: #""PageDown": "black""#)
+            try write(customised, to: url)
+            #expect(try KeyMap.installDefault(at: url) == false)
+            #expect(try String(contentsOf: url, encoding: .utf8) == customised)
+            let (map, error) = KeyMap.load(from: url)
+            #expect(error == nil)
+            #expect(map.slotsWithoutKeys == Array(1...6))
+            #expect(try map.action(for: #require(KeyChord("Num1"))) == nil)
+            #expect(try map.action(for: #require(KeyChord("PageDown"))) == .command(.toggleCover(.black)))
+        }
+    }
+
     @Test func brokenFileFallsBackToTheDefaultAndNamesTheCulprit() throws {
         try withTempDir { dir in
             let url = dir.appendingPathComponent("keymap.json")
             try write(#"{ "format": 1, "keys": { "Enter": "go", "B": "blackout" } }"#, to: url)
+            #expect(try KeyMap.installDefault(at: url) == false)
             let (map, error) = KeyMap.load(from: url)
             #expect(error == .unknownAction(chord: "B", action: "blackout"))
             #expect(try map.action(for: #require(KeyChord("B"))) == .command(.toggleCover(.black)))

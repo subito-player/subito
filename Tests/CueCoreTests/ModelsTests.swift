@@ -114,9 +114,49 @@ func jsonObject(_ data: Data) throws -> NSDictionary {
         #expect(try jsonObject(encoded) == jsonObject(Data(json.utf8)))
     }
 
+    @Test func anOldConcertFileSavesBackWithoutASlotsKey() throws {
+        let json = #"{ "format": 1, "title": "T", "logos": ["a.png", ""], "items": [{ "type": "logo", "logo": 2 }] }"#
+        let concert = try JSONDecoder().decode(Concert.self, from: Data(json.utf8))
+        #expect(concert.logos == [.image("a.png"), .image("")])
+        #expect(concert.slots.isEmpty)
+        #expect(try jsonObject(JSONEncoder().encode(concert)) == jsonObject(Data(json.utf8)))
+    }
+
+    @Test func overridesSaveAsNullEmptyOrObjectWithTrailingDefaultsDropped() throws {
+        let sponsor = SlotEntry(name: "Sponsor 2026", file: "slots/sponsor.png")
+        let concert = Concert(
+            title: "T", logos: [nil, .image(""), nil], slots: [.useDefault, .own(sponsor), .empty, .useDefault])
+        let json = #"""
+            { "format": 1, "title": "T", "logos": [null, ""],
+              "slots": [null, { "name": "Sponsor 2026", "file": "slots/sponsor.png" }, ""], "items": [] }
+            """#
+        let encoded = try JSONEncoder().encode(concert)
+        #expect(try jsonObject(encoded) == jsonObject(Data(json.utf8)))
+        #expect(try JSONDecoder().decode(Concert.self, from: encoded) == concert.trimmed)
+
+        let defaults = Concert(title: "T", logos: [nil, nil], slots: [.useDefault, .useDefault])
+        let plain = try jsonObject(JSONEncoder().encode(defaults))
+        #expect(plain["slots"] == nil)
+        #expect((plain["logos"] as? [Any])?.isEmpty == true)
+    }
+
+    @Test func aSlotIsNullEmptyOrAnObjectButNeverABarePath() throws {
+        try withTempDir { dir in
+            let url = dir.appendingPathComponent("a.concert.json")
+            try write(#"{ "format": 1, "title": "T", "slots": [null, "x.png"] }"#, to: url)
+            #expect {
+                try ShowLoader.loadConcert(at: url)
+            } throws: { error in
+                guard case ShowError.invalidJSON(_, let message) = error else { return false }
+                return message.contains(".slots[1]")
+            }
+        }
+    }
+
     @Test func absentListsDecodeAsEmpty() throws {
         let concert = try JSONDecoder().decode(Concert.self, from: Data(#"{ "format": 1, "title": "T" }"#.utf8))
         #expect(concert.logos.isEmpty)
+        #expect(concert.slots.isEmpty)
         #expect(concert.items.isEmpty)
         let movie = try JSONDecoder().decode(Movie.self, from: Data(#"{ "format": 1, "title": "T" }"#.utf8))
         #expect(movie.items.isEmpty)

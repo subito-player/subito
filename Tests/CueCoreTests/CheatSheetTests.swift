@@ -22,8 +22,8 @@ private func row(_ sections: [CheatSheet.Section], keys: [String]) -> CheatSheet
                 #expect(rows.contains { $0.keys.contains(chord.label(lang)) }, "\(chord.name)")
             }
         }
-        // Five show rows, twelve moving rows (digits share one), mute, quit, Esc and the Advanced view.
-        #expect(rows.count == 21)
+        // Six show rows (slots share one), twelve moving rows (digits share one), mute, quit, Esc, Advanced view.
+        #expect(rows.count == 22)
         #expect(Set(rows.map(\.label)).count == rows.count)
         #expect(html.hasPrefix("<!doctype html>\n<html lang=\"\(lang.rawValue)\">"))
         #expect(html.hasSuffix("</html>\n"))
@@ -32,7 +32,11 @@ private func row(_ sections: [CheatSheet.Section], keys: [String]) -> CheatSheet
     @Test func groupsAndOrderFollowTheShow() {
         let sections = CheatSheet.sections(keyMap: .standard, lang: .en)
         #expect(sections.map(\.title) == ["Show", "Moving", "Sound and safety"])
-        #expect(sections[0].rows.map(\.keys) == [["Enter", "Keypad Enter"], ["Space"], ["B"], ["L"], ["Shift+L"]])
+        #expect(
+            sections[0].rows.map(\.keys) == [
+                ["Enter", "Keypad Enter"], ["Space"], ["B"], ["L"], ["Shift+L"], (1...6).map { "Keypad \($0)" },
+            ])
+        #expect(sections[0].rows.last?.label == "Slot cover on / off, by slot number")
         #expect(sections[0].rows[0].label == "GO: start the armed item")
         #expect(
             sections[1].rows.map(\.keys).prefix(5) == [
@@ -64,6 +68,14 @@ private func row(_ sections: [CheatSheet.Section], keys: [String]) -> CheatSheet
             keyMap: try map(#""3": "arm:3", "F1": "arm:1", "Shift+F2": "arm:12""#), lang: .en)
         #expect(
             row(sections, keys: ["F1 (1)", "3", "Shift+F2 (12)"])?.label == "Arm a clip by its number (in this movie)")
+    }
+
+    @Test func slotsOnOtherKeysSayWhichSlotTheyToggle() throws {
+        let sections = CheatSheet.sections(
+            keyMap: try map(#""Num2": "slot:2", "F5": "slot:1", "Num1": "slot:3""#), lang: .hu)
+        #expect(
+            row(sections, keys: ["F5 (1)", "Num 2", "Num 1 (3)"])?.label == "Slot takarás be / ki, a slot száma szerint"
+        )
     }
 
     @Test func otherSecondsReadAsTheirOwnRows() throws {

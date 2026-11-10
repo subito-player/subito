@@ -323,6 +323,12 @@ extension ShowDocument {
         #expect(result.document.cues[6] == Cue(kind: .logo(2), movieIndex: nil))
     }
 
+    // Picture 3 is slot 1, and a slot is never a live item.
+    @Test func aLogoItemShowsLogo1Or2Only() {
+        #expect(gala().apply(.setLogo(place(concertURL, 4), 3), live: nil).refusal == .noSuchItem)
+        #expect(gala().apply(.setLogo(place(concertURL, 4), 0), live: nil).refusal == .noSuchItem)
+    }
+
     @Test func movieAndConcertTitles() throws {
         let movie = try gala().apply(.renameMovie(movieB, " Showman "), live: nil).edited
         #expect(movie.document.movies[movieB]?.title == "Showman")
@@ -407,66 +413,80 @@ extension ShowDocument {
     }
 }
 
-@Suite struct LogoFileTests {
-    private func logos(_ result: EditResult) -> [Logo] {
-        result.document.concert?.logos ?? []
+@Suite struct PictureEditTests {
+    private func own(_ file: String, _ name: String = "") -> SlotOverride {
+        .own(SlotEntry(name: name, file: file))
     }
 
-    @Test func setReplaceAndClearChangeOnlyTheConcertsLogos() throws {
+    private func concert(_ result: EditResult) -> Concert {
+        result.document.concert ?? Concert(title: "none")
+    }
+
+    @Test func aLogoTakesAFileGoesBackToTheDefaultOrIsEmptied() throws {
         let document = gala()
-        let set = try document.apply(.setLogoFile(1, .loop("/show/logos/intro.mp4")), live: 6).edited
-        #expect(logos(set) == [.loop("logos/intro.mp4"), .loop("logos/e.mp4")])
+        let set = try document.apply(.setPicture(1, own("/show/logos/intro.mp4")), live: 6).edited
+        #expect(concert(set).logos == [.loop("logos/intro.mp4"), .loop("logos/e.mp4")])
         #expect(set.document.logos.first == .loop(URL(fileURLWithPath: "/show/logos/intro.mp4")))
         #expect(set.changed == [concertURL])
         #expect(set.indexMap == Array(0..<7))
         #expect(set.document.cues == document.cues)
-        let replaced = try set.document.apply(.setLogoFile(2, .image("/show/logos/e.png")), live: nil).edited
-        #expect(logos(replaced) == [.loop("logos/intro.mp4"), .image("logos/e.png")])
-        let cleared = try replaced.document.apply(.setLogoFile(1, nil), live: nil).edited
-        #expect(logos(cleared) == [.image(""), .image("logos/e.png")])
-        #expect(cleared.document.logos == [nil, .image(URL(fileURLWithPath: "/show/logos/e.png"))])
-        #expect(try replaced.document.apply(.setLogoFile(1, .loop("")), live: nil).edited.document == cleared.document)
+        let image = try set.document.apply(.setPicture(2, own("/show/logos/e.PNG", "ignored")), live: nil).edited
+        #expect(concert(image).logos == [.loop("logos/intro.mp4"), .image("logos/e.PNG")])
+        let emptied = try image.document.apply(.setPicture(2, .empty), live: nil).edited
+        #expect(concert(emptied).logos == [.loop("logos/intro.mp4"), .image("")])
+        #expect(emptied.document.logos == [.loop(URL(fileURLWithPath: "/show/logos/intro.mp4")), nil])
+        let back = try emptied.document.apply(.setPicture(1, .useDefault), live: nil).edited
+        #expect(concert(back).logos == [nil, .image("")])
+        #expect(back.document.logos == [nil, nil])
+        #expect(concert(try back.document.apply(.setPicture(2, .useDefault), live: nil).edited).logos.isEmpty)
+        #expect(concert(back).slots.isEmpty)
+    }
+
+    @Test func aSlotIsKeptOnlyUpToItsLastOverride() throws {
+        let third = try gala().apply(.setPicture(5, own("/show/slots/sponsor.png", "Sponsor")), live: nil).edited
+        let sponsor = own("slots/sponsor.png", "Sponsor")
+        #expect(concert(third).slots == [.useDefault, .useDefault, sponsor])
+        #expect(concert(third).logos == gala().concert?.logos)
+        #expect(third.document.cues == gala().cues)
+        let first = try third.document.apply(.setPicture(3, .empty), live: nil).edited
+        #expect(concert(first).slots == [.empty, .useDefault, sponsor])
+        let dropped = try first.document.apply(.setPicture(5, .useDefault), live: nil).edited
+        #expect(concert(dropped).slots == [.empty])
+        let last = try gala().apply(.setPicture(8, own("thanks.mov", "Thanks")), live: nil).edited
+        #expect(concert(last).slots == Array(repeating: .useDefault, count: 5) + [own("thanks.mov", "Thanks")])
+        #expect(
+            concert(try gala().apply(.setPicture(4, own("", "x")), live: nil).edited).slots == [.useDefault, .empty])
     }
 
     @Test func aFileInsideTheShowFolderIsStoredRelativeAndOneOutsideAbsolute() throws {
-        let inside = try gala().apply(.setLogoFile(1, .image("/show/art/o.png")), live: nil).edited
-        let relative = try gala().apply(.setLogoFile(1, .image("art/o.png")), live: nil).edited
-        let outside = try gala().apply(.setLogoFile(1, .loop("/Volumes/Stage/intro.mp4")), live: nil).edited
-        #expect(logos(inside).first == .image("art/o.png"))
-        #expect(logos(relative).first == .image("art/o.png"))
-        #expect(logos(outside).first == .loop("/Volumes/Stage/intro.mp4"))
+        let inside = try gala().apply(.setPicture(3, own("/show/art/o.png")), live: nil).edited
+        let relative = try gala().apply(.setPicture(3, own("art/o.png")), live: nil).edited
+        let outside = try gala().apply(.setPicture(1, own("/Volumes/Stage/intro.mp4")), live: nil).edited
+        #expect(concert(inside).slots == [own("art/o.png")])
+        #expect(concert(relative).slots == [own("art/o.png")])
+        #expect(concert(outside).logos.first == .loop("/Volumes/Stage/intro.mp4"))
     }
 
-    @Test func theListGrowsToTheNumberAndClearingTheLastShrinksIt() throws {
-        let empty = ShowDocument(LoadedConcert(concert: Concert(title: "Gala"), url: concertURL, movies: [:]))
-        let second = try empty.apply(.setLogoFile(2, .loop("/show/e.mp4")), live: nil).edited
-        #expect(logos(second) == [.image(""), .loop("e.mp4")])
-        #expect(second.document.logos == [nil, .loop(URL(fileURLWithPath: "/show/e.mp4"))])
-        let both = try second.document.apply(.setLogoFile(1, .image("/show/o.png")), live: nil).edited
-        let shrunk = try both.document.apply(.setLogoFile(2, nil), live: nil).edited
-        #expect(logos(shrunk) == [.image("o.png")])
-        // A gap left at the end goes too, so no number without a file trails the list.
-        #expect(logos(try second.document.apply(.setLogoFile(2, nil), live: nil).edited).isEmpty)
-        #expect(logos(try shrunk.document.apply(.setLogoFile(3, nil), live: nil).edited) == [.image("o.png")])
-    }
-
-    @Test func aGapIsSavedAsAnEmptyPathAndLoadsBack() throws {
+    @Test func overridesSaveAndLoadBack() throws {
         try withTempDir { dir in
-            let concert = dir.appendingPathComponent("gala.concert.json")
+            let file = dir.appendingPathComponent("gala.concert.json")
             let loop = dir.appendingPathComponent("logos/e.mp4")
             try write("", to: loop)
-            try ShowLoader.save(Concert(title: "Gala"), to: concert)
-            let result = try ShowDocument.load(concert).apply(.setLogoFile(2, .loop(loop.path)), live: nil).edited
-            for file in result.changed { try result.document.save(file) }
-            let json = try JSONSerialization.jsonObject(with: Data(contentsOf: concert)) as? [String: Any]
-            #expect((json?["logos"] as? [Any])?.first as? String == "")
-            #expect(try ShowDocument.load(concert).concert?.logos == [.image(""), .loop("logos/e.mp4")])
+            try ShowLoader.save(Concert(title: "Gala"), to: file)
+            let logo = try ShowDocument.load(file).apply(.setPicture(2, own(loop.path)), live: nil).edited
+            let slot = try logo.document.apply(.setPicture(4, own(loop.path, "Loop")), live: nil).edited
+            for file in slot.changed { try slot.document.save(file) }
+            let json = try jsonObject(Data(contentsOf: file))
+            #expect((json["logos"] as? [Any])?.first is NSNull)
+            #expect((json["slots"] as? [Any])?.first is NSNull)
+            #expect(try ShowDocument.load(file).concert == slot.document.concert)
         }
     }
 
-    @Test func aSingleMovieHasNoLogosAndNumbersStartAtOne() {
-        #expect(single().apply(.setLogoFile(1, .image("/show/o.png")), live: nil).refusal == .noSuchItem)
-        #expect(gala().apply(.setLogoFile(0, nil), live: nil).refusal == .noSuchItem)
+    @Test func onlyAConcertHasPicturesNumberedOneToEight() {
+        #expect(single().apply(.setPicture(1, own("/show/o.png")), live: nil).refusal == .noSuchItem)
+        #expect(gala().apply(.setPicture(0, .empty), live: nil).refusal == .noSuchItem)
+        #expect(gala().apply(.setPicture(9, .empty), live: nil).refusal == .noSuchItem)
     }
 }
 

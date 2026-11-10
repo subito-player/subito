@@ -323,10 +323,17 @@ extension ShowState {
         #expect(ShowState.fadesCover(from: .logo(2), to: nil, withGo: false))
     }
 
+    // Slot n is picture n + 2.
+    @Test func aSlotFadesLikeALogo() {
+        #expect(ShowState.fadesCover(from: nil, to: .logo(5), withGo: false))
+        #expect(ShowState.fadesCover(from: .logo(8), to: nil, withGo: false))
+        #expect(!ShowState.fadesCover(from: .logo(5), to: nil, withGo: true))
+    }
+
     @Test func blackAndEveryCoverSwapCut() {
         let cuts: [(Cover?, Cover?)] = [
             (nil, .black), (.black, nil), (.logo(1), .black), (.black, .logo(2)), (.logo(1), .logo(2)),
-            (.logo(2), .logo(1)),
+            (.logo(2), .logo(1)), (.logo(3), .logo(4)), (.logo(1), .logo(8)), (.logo(6), .black),
         ]
         for (old, new) in cuts {
             let change = "\(String(describing: old)) to \(String(describing: new))"

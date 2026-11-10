@@ -72,10 +72,15 @@ public enum CheatSheet {
         let words = Words(lang: lang)
         var entries: [Entry] = []
         var numbers: [(number: Int, chord: KeyChord)] = []
+        var slots: [(number: Int, chord: KeyChord)] = []
         for action in keyMap.actions {
             let chords = keyMap.chords(for: action)
             if case .command(.armNumber(let number)) = action {
                 numbers += chords.map { (number, $0) }
+                continue
+            }
+            if case .command(.toggleCover(.logo(let number))) = action, number > logoCount {
+                slots += chords.map { (number - logoCount, $0) }
                 continue
             }
             let (group, order, value) = place(action)
@@ -87,6 +92,13 @@ public enum CheatSheet {
                 chord.name == "\(number)" ? chord.name : "\(chord.label(lang)) (\(number))"
             }
             entries.append(Entry(group: .moving, order: 5, row: Row(label: words.armNumber, keys: keys)))
+        }
+        // One row for all six, so the sheet stays one page.
+        if !slots.isEmpty {
+            let keys = slots.sorted { $0.number < $1.number }.map { number, chord in
+                chord.name == "Num\(number)" ? chord.label(lang) : "\(chord.label(lang)) (\(number))"
+            }
+            entries.append(Entry(group: .show, order: 4, row: Row(label: words.slots, keys: keys)))
         }
         // Cmd+Q and Esc are fixed in the app; a key map that binds them gets its own row instead.
         if keyMap.action(for: KeyChord(key: "Q", modifiers: [.command])) == nil {
@@ -140,6 +152,9 @@ public enum CheatSheet {
         }
         var armNumber: String {
             pick("Klip előkészítése a száma alapján (ebben a filmben)", "Arm a clip by its number (in this movie)")
+        }
+        var slots: String {
+            pick("Slot takarás be / ki, a slot száma szerint", "Slot cover on / off, by slot number")
         }
         var quit: String { pick("Kilépés: nyomd meg kétszer 3 mp-en belül", "Quit: press twice within 3 s") }
         var escape: String { pick("Nem csinál semmit", "Does nothing") }

@@ -8,7 +8,7 @@ public struct KeyChord: Hashable, Sendable {
     public static let namedKeys: Set<String> = [
         "Enter", "KeypadEnter", "Space", "Left", "Right", "Up", "Down", "Home", "End", "Escape", "Tab", "Delete",
         "KeypadPlus", "KeypadMinus", "PageUp", "PageDown", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9",
-        "F10", "F11", "F12",
+        "F10", "F11", "F12", "Num0", "Num1", "Num2", "Num3", "Num4", "Num5", "Num6", "Num7", "Num8", "Num9",
     ]
     private static let modifierNames: [String: Modifier] = [
         "Shift": .shift, "Opt": .option, "Cmd": .command, "Ctrl": .control,
@@ -53,12 +53,14 @@ public struct KeyChord: Hashable, Sendable {
                 "Delete": "Törlés",
             ]
             : ["KeypadEnter": "Keypad Enter", "KeypadPlus": "Keypad +", "KeypadMinus": "Keypad -"]
-        return KeyChord(key: names[key] ?? shared[key] ?? key, modifiers: modifiers).name
+        let digit = key.hasPrefix("Num") ? (lang == .hu ? "Num " : "Keypad ") + key.dropFirst(3) : nil
+        return KeyChord(key: names[key] ?? shared[key] ?? digit ?? key, modifiers: modifiers).name
     }
 
     // Plain keys before keypad ones, then fewer modifiers, so the main key leads wherever one is shown.
     fileprivate var order: (Int, Int, String, String) {
-        (key.hasPrefix("Keypad") ? 1 : 0, modifiers.count, modifiers.map(\.rawValue).sorted().joined(), key)
+        let keypad = key.hasPrefix("Keypad") || key.hasPrefix("Num")
+        return (keypad ? 1 : 0, modifiers.count, modifiers.map(\.rawValue).sorted().joined(), key)
     }
 }
 
@@ -97,7 +99,7 @@ public enum KeyMapError: Error, Equatable, CustomStringConvertible {
     }
 }
 
-public struct KeyMap: Sendable {
+public struct KeyMap: Equatable, Sendable {
     public static let format = 1
     // US layout: the character Shift makes, and the key it is on.
     static let shiftedKeys: [String: String] = [
@@ -137,6 +139,12 @@ public struct KeyMap: Sendable {
             "7": "arm:7",
             "8": "arm:8",
             "9": "arm:9",
+            "Num1": "slot:1",
+            "Num2": "slot:2",
+            "Num3": "slot:3",
+            "Num4": "slot:4",
+            "Num5": "slot:5",
+            "Num6": "slot:6",
             "Home": "restart",
             "M": "mute",
             "Ctrl+Opt+D": "advanced"
@@ -144,8 +152,49 @@ public struct KeyMap: Sendable {
         }
         """
 
-    // defaultJSON is pinned by the tests, so parsing it cannot fail.
+    // The v0.2 default, without slots; a keymap.json still holding it gets the current default.
+    static let v02DefaultJSON = """
+        {
+          "format": 1,
+          "keys": {
+            "Enter": "go",
+            "KeypadEnter": "go",
+            "Space": "playPause",
+            "B": "black",
+            "L": "logo1",
+            "Shift+L": "logo2",
+            "Left": "seek:-5",
+            "Right": "seek:5",
+            "Shift+Left": "seek:-30",
+            "Shift+Right": "seek:30",
+            "Opt+Left": "park:-5",
+            "Opt+Right": "park:5",
+            "Opt+Shift+Left": "park:-30",
+            "Opt+Shift+Right": "park:30",
+            "Up": "armPrevious",
+            "KeypadMinus": "armPrevious",
+            "Down": "armNext",
+            "KeypadPlus": "armNext",
+            "0": "arm:0",
+            "1": "arm:1",
+            "2": "arm:2",
+            "3": "arm:3",
+            "4": "arm:4",
+            "5": "arm:5",
+            "6": "arm:6",
+            "7": "arm:7",
+            "8": "arm:8",
+            "9": "arm:9",
+            "Home": "restart",
+            "M": "mute",
+            "Ctrl+Opt+D": "advanced"
+          }
+        }
+        """
+
+    // defaultJSON and v02DefaultJSON are pinned by the tests, so parsing them cannot fail.
     public static let standard = try! KeyMap(json: Data(defaultJSON.utf8))
+    private static let v02Default = try! KeyMap(json: Data(v02DefaultJSON.utf8))
 
     private var bindings: [KeyChord: KeyAction] = [:]
 
@@ -175,11 +224,15 @@ public struct KeyMap: Sendable {
         }
     }
 
-    // A missing file is created from the default, so the owner always has one to edit.
+    // A missing file, or one with the v0.2 default keys, gets the current default; any other file is the owner's.
     @discardableResult
     public static func installDefault(at url: URL) throws -> Bool {
-        guard !FileManager.default.fileExists(atPath: url.path) else { return false }
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if FileManager.default.fileExists(atPath: url.path) {
+            guard let data = try? Data(contentsOf: url), (try? KeyMap(json: data)) == v02Default else { return false }
+        } else {
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        }
         try Data((defaultJSON + "\n").utf8).write(to: url, options: .atomic)
         return true
     }
@@ -206,6 +259,11 @@ public struct KeyMap: Sendable {
 
     public func chords(for action: KeyAction) -> [KeyChord] {
         bindings.filter { $0.value == action }.map(\.key).sorted { $0.order < $1.order }
+    }
+
+    // Slots no key reaches; a customised keymap.json is never rewritten, so the app says so instead.
+    public var slotsWithoutKeys: [Int] {
+        (1...slotCount).filter { chords(for: .command(.toggleCover(.logo($0 + logoCount)))).isEmpty }
     }
 
     // Stray Shift/Option falls to the plain binding, never an arm-by-number one (Opt+Shift+4 is a screenshot).
@@ -245,6 +303,10 @@ public struct KeyMap: Sendable {
         let parts = name.split(separator: ":", maxSplits: 1).map(String.init)
         guard parts.count == 2 else { return nil }
         if parts[0] == "arm", let number = Int(parts[1]) { return .command(.armNumber(number)) }
+        if parts[0] == "slot" {
+            guard let number = Int(parts[1]), (1...slotCount).contains(number) else { return nil }
+            return .command(.toggleCover(.logo(number + logoCount)))
+        }
         guard let seconds = Double(parts[1]), seconds.isFinite else { return nil }
         switch parts[0] {
         case "seek": return .command(.seekLive(by: seconds))

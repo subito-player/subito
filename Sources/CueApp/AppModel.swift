@@ -704,9 +704,9 @@ final class AppModel {
         }
     }
 
-    // A video becomes a loop, anything else an image.
+    // An MP4, MOV or M4V becomes a loop, anything else an image; nil drops the concert's own file.
     func setLogoFile(_ number: Int, _ url: URL?) {
-        edit(.setLogoFile(number, url.map { Self.isVideo($0) ? .loop($0.path) : .image($0.path) }))
+        edit(.setPicture(number, url.map { .own(SlotEntry(name: "", file: $0.path)) } ?? .useDefault))
     }
 
     func setCountdown(_ place: Place, _ on: Bool) {
@@ -776,7 +776,7 @@ final class AppModel {
             if result.document.logos != document.logos { engine.setLogos(result.document.logos) }
             // A picked file is probed again, so a re-exported loop is not judged by its old probe.
             let logos = result.document.logos
-            if case .setLogoFile(let number, _?) = op, logos.indices.contains(number - 1),
+            if case .setPicture(let number, .own) = op, logos.indices.contains(number - 1),
                 let picked = logos[number - 1]
             {
                 probes[picked.url] = nil
