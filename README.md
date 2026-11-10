@@ -5,7 +5,7 @@
 Silent video player for live orchestras. One Mac, two screens: the laptop is the operator's control screen, the
 projector shows only video, black, a logo or the break screen. Keyboard first, boring and predictable.
 
-Status: v0.1 in progress for the first rehearsal (2026-11-13). macOS 14+, Apple Silicon and Intel (universal).
+Status: v0.2.0 released, first rehearsal 2026-11-13. macOS 14+, Apple Silicon and Intel (universal).
 
 ## Build
 
@@ -62,6 +62,7 @@ A downloaded (quarantined) build opens via System Settings > Privacy & Security 
 ## Docs
 
 - [Design](docs/design.md): what it does and why.
+- [Show files](docs/show-files.md): movie and concert JSON format, for scripts that generate them.
 - [Plan](docs/plan.md): v0.1 build order.
 - [Development](docs/development.md): rules for working on this repo.
 - [Operator checklist](docs/operator-checklist.md): one printable page, Hungarian and English.
