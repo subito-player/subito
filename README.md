@@ -14,6 +14,7 @@ make test     # CueCore tests with coverage gate
 make run      # build and launch the app
 make app      # ad-hoc signed Apple Silicon .app in build/
 make zip      # zipped .app for sharing
+make dmg      # disk image: open it, drag Attacca to Applications
 make samples  # test clips, logos, a movie and a concert in build/samples (needs ffmpeg or nix)
 ```
 
@@ -64,7 +65,8 @@ nix shell nixpkgs#ffmpeg --command ffmpeg -i logo.gif -pix_fmt yuv420p -vf "scal
 
 ## First open
 
-A downloaded (quarantined) build opens via System Settings > Privacy & Security > Open Anyway, or
+From a release: download the `.dmg`, open it and drag Attacca onto Applications (or unzip the `.zip`). A downloaded
+(quarantined) build opens via System Settings > Privacy & Security > Open Anyway, or
 `xattr -dr com.apple.quarantine <app>`.
 
 ## Docs

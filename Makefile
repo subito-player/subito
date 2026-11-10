@@ -7,7 +7,7 @@ ARCHS := --arch arm64
 APP_DIR := build/$(APP_NAME).app
 
 .DEFAULT_GOAL := app
-.PHONY: app run zip lint format test clean samples check
+.PHONY: app run zip dmg lint format test clean samples check
 
 define INFO_PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -76,6 +76,16 @@ run: app
 
 zip: app
 	ditto -c -k --keepParent "$(APP_DIR)" "build/$(APP_NAME)-$(VERSION).zip"
+
+# Drag-to-install disk image: the app next to a link to Applications.
+dmg: app
+	rm -rf build/dmg "build/$(APP_NAME)-$(VERSION).dmg"
+	mkdir -p build/dmg
+	ditto "$(APP_DIR)" "build/dmg/$(APP_NAME).app"
+	ln -s /Applications build/dmg/Applications
+	hdiutil create -quiet -volname "$(APP_NAME) $(VERSION)" -srcfolder build/dmg -fs HFS+ -format UDZO \
+		"build/$(APP_NAME)-$(VERSION).dmg"
+	rm -rf build/dmg
 
 # Headless preflight with the built app, never rebuilding it: make check SHOW=<concert, movie or clip folder>.
 check:

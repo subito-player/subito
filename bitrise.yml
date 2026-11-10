@@ -13,12 +13,12 @@ workflows:
     steps:
     - git-clone@8: {}
     - script@1:
-        title: make lint test zip
+        title: make lint test zip dmg
         inputs:
         - content: |-
             set -euo pipefail
-            make lint test zip
-            cp build/*.zip "$BITRISE_DEPLOY_DIR/"
+            make lint test zip dmg
+            cp build/*.zip build/*.dmg "$BITRISE_DEPLOY_DIR/"
     - deploy-to-bitrise-io@2: {}
     meta:
       bitrise.io:
