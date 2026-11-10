@@ -217,6 +217,8 @@ struct Strings {
     var concertTitle: String { pick("Koncert címe", "Concert title") }
     var movieTitle: String { pick("Film címe", "Movie title") }
     var clipTitle: String { pick("Cím", "Title") }
+    var brief: String { pick("Instrukció", "Brief") }
+    var briefPlaceholder: String { pick("pl. GO a karmester intésére", "e.g. GO on the conductor's upbeat") }
     var plannedEnd: String { pick("Tervezett vég", "Planned end") }
     var tail: String { pick("Ráhagyás", "Tail") }
     var breakText: String { pick("Szöveg", "Text") }

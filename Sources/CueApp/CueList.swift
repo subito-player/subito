@@ -310,6 +310,7 @@ private struct Inspector: View {
         switch item {
         case .clip(let clip):
             field(s.clipTitle, .clipTitle(place), placeholder: Clip(file: clip.file).resolvedTitle)
+            field(s.brief, .brief(place), placeholder: s.briefPlaceholder)
             field(s.plannedEnd, .plannedEnd(place), placeholder: "m:ss")
             field(s.tail, .tail(place), placeholder: "m:ss")
         case .breakScreen(let item):

@@ -71,6 +71,7 @@ enum Field: Hashable {
     case showTitle
     case movieTitle(URL)
     case clipTitle(Place)
+    case brief(Place)
     case plannedEnd(Place)
     case tail(Place)
     case breakText(Place)
@@ -822,6 +823,7 @@ final class AppModel {
         case .showTitle: document?.title ?? ""
         case .movieTitle(let url): document?.movies[url]?.title ?? ""
         case .clipTitle(let place): clip(at: place)?.title ?? ""
+        case .brief(let place): clip(at: place)?.brief ?? ""
         case .plannedEnd(let place): clip(at: place)?.plannedEndS.map(Clock.text) ?? ""
         case .tail(let place): clip(at: place)?.tailS.map(Clock.text) ?? ""
         case .breakText(let place): breakItem(at: place)?.text ?? ""
@@ -839,6 +841,8 @@ final class AppModel {
             return trimmed.isEmpty ? .failure(.emptyTitle) : .success(.renameMovie(url, trimmed))
         case .clipTitle(let place):
             return .success(.renameClip(place, trimmed))
+        case .brief(let place):
+            return .success(.setBrief(place, trimmed))
         case .breakText(let place):
             return .success(.setBreakText(place, trimmed))
         case .plannedEnd(let place), .tail(let place):

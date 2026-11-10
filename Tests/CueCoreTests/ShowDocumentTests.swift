@@ -289,6 +289,13 @@ extension ShowDocument {
         let cleared = try renamed.document.apply(.renameClip(place(movieA, 0), " "), live: nil).edited
         #expect(cleared.document.items(movieA)[0] == .clip(clipX))
 
+        let briefed = try document.apply(.setBrief(place(movieA, 0), "  GO on the upbeat  "), live: 1).edited
+        #expect(briefed.document.items(movieA)[0] == .clip(Clip(file: "01_x.mp4", brief: "GO on the upbeat")))
+        #expect(briefed.indexMap == [0, 1, 2, 3, 4, 5, 6])
+        let unbriefed = try briefed.document.apply(.setBrief(place(movieA, 0), " "), live: nil).edited
+        #expect(unbriefed.document.items(movieA)[0] == .clip(clipX))
+        #expect(document.apply(.setBrief(place(movieA, 1), "x"), live: nil).refusal == .noSuchItem)
+
         let timed = try document.apply(.setClipTimes(place(movieA, 2), plannedEndS: 212.5, tailS: 60), live: nil)
             .edited
         #expect(timed.document.items(movieA)[2] == .clip(Clip(file: "02_y.mp4", plannedEndS: 212.5, tailS: 60)))

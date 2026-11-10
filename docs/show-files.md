@@ -50,7 +50,7 @@ Clip item:
 | `planned_end_s` | no | Seconds where the music ends. White marker, big "to planned end" timer. No value means no markers. |
 | `tail_s` | no | Safety footage after the planned end, in seconds. Amber marker at `planned_end_s + tail_s`. |
 | `colour` | no | `"#RRGGBB"` or `"#RGB"`: swatch next to the clip number in the list. Anything else shows no swatch. |
-| `brief` | no | Note for the operator, under the LIVE and NEXT preview titles (2 lines, then cut). Never on the projector. |
+| `brief` | no | Note for the operator, under the LIVE and NEXT preview titles (2 lines, then cut). Never on the projector. Edited in the inspector. |
 
 Preflight warns (still plays) when a clip isn't 1920x1080, isn't 23.976 fps, `planned_end_s` is past the end of the
 file, or the file length differs from `planned_end_s + tail_s` by more than 1.05 s.
