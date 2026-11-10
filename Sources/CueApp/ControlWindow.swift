@@ -26,7 +26,8 @@ final class ControlWindow: NSWindow {
             newMovie: { [weak self] in self?.newMovie() },
             newConcert: { [weak self] in self?.newConcert() },
             addClips: { [weak self] in self?.addClips() },
-            addMovie: { [weak self] in self?.addMovie() })
+            addMovie: { [weak self] in self?.addMovie() },
+            logoFile: { [weak self] number in self?.chooseLogo(number) })
         let host = NSHostingView(
             rootView: ControlView(model: model, focusControl: { [weak self] in self?.takeFocus() }, pickers: pickers))
         // The window size comes from the screen, never from the SwiftUI content.
@@ -162,6 +163,20 @@ final class ControlWindow: NSWindow {
         panel.prompt = s.add
         present(panel) { [weak self] urls in
             if let url = urls.first { self?.model.addMovie(url) }
+        }
+    }
+
+    // Starts in the show folder, where a pick is stored as a relative path.
+    private func chooseLogo(_ number: Int) {
+        let s = model.strings
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [.image, .movie]
+        panel.directoryURL = model.document?.url.deletingLastPathComponent()
+        panel.message = s.logoFileMessage(number)
+        panel.prompt = s.choose
+        present(panel) { [weak self] urls in
+            if let url = urls.first { self?.model.setLogoFile(number, url) }
         }
     }
 

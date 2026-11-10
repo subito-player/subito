@@ -57,6 +57,13 @@ public struct Concert: Codable, Equatable, Sendable {
 public enum Logo: Equatable, Sendable {
     case image(String)
     case loop(String)
+
+    // Empty for a logo number with no file.
+    public var path: String {
+        switch self {
+        case .image(let path), .loop(let path): path
+        }
+    }
 }
 
 extension Logo: Codable {

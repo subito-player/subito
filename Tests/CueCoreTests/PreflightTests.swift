@@ -101,7 +101,7 @@ private func probe(_ change: (inout ClipProbe) -> Void) -> ClipProbe {
             Cue(kind: .clip(Clip(file: "03_z.mp4"), URL(fileURLWithPath: "/show/03_z.mp4")), movieIndex: 0),
         ]
         let findings = Preflight.evaluate(
-            cues: cues, probes: [good: ownExport, other: probe { $0.fps = 25 }], logoCount: 0)
+            cues: cues, probes: [good: ownExport, other: probe { $0.fps = 25 }], logos: [])
         #expect(
             findings == [
                 Finding(severity: .warn, cueIndex: 2, kind: .frameRate, detail: "25 fps"),
@@ -111,24 +111,72 @@ private func probe(_ change: (inout ClipProbe) -> Void) -> ClipProbe {
 
     @Test func logoCueAboveTheLogoCountWarns() {
         let cues = [1, 2, 3].map { Cue(kind: .logo($0), movieIndex: nil) }
+        let two = [image("a.png"), image("b.png")]
         #expect(
-            Preflight.evaluate(cues: cues, probes: [:], logoCount: 2) == [
+            Preflight.evaluate(cues: cues, probes: [:], logos: two) == [
                 Finding(severity: .warn, cueIndex: 2, kind: .logoNumber, detail: "3")
             ])
-        #expect(Preflight.evaluate(cues: cues, probes: [:], logoCount: 0).map(\.cueIndex) == [0, 1, 2])
-        #expect(Preflight.evaluate(cues: cues, probes: [:], logoCount: 3) == [])
+        #expect(Preflight.evaluate(cues: cues, probes: [:], logos: []).map(\.cueIndex) == [0, 1, 2])
+        #expect(Preflight.evaluate(cues: cues, probes: [:], logos: two + [loop("c.mp4")]) == [])
     }
+
+    @Test func logoCueOnANumberWithNoFileWarns() {
+        let cues = [1, 2].map { Cue(kind: .logo($0), movieIndex: nil) }
+        #expect(
+            Preflight.evaluate(cues: cues, probes: [:], logos: [nil, loop("b.mp4")]) == [
+                Finding(severity: .warn, cueIndex: 0, kind: .logoNumber, detail: "1")
+            ])
+    }
+}
+
+private func image(_ name: String) -> LogoFile {
+    .image(URL(fileURLWithPath: "/show/logos/\(name)"))
+}
+
+private func loop(_ name: String) -> LogoFile {
+    .loop(URL(fileURLWithPath: "/show/logos/\(name)"))
 }
 
 @Suite struct LogoPreflightTests {
     @Test func aLogoThatDidNotLoadWarnsWithItsNumberAndFileName() {
-        let logos = ["a.png", "b.png", "c.png"].map { URL(fileURLWithPath: "/show/logos/\($0)") }
-        #expect(Preflight.evaluate(logos: logos, loaded: [true, true, true]) == [])
+        let logos = ["a.png", "b.png", "c.png"].map(image)
+        let urls = logos.map(\.url)
+        #expect(Preflight.evaluate(logos: logos, images: Set(urls), probes: [:]) == [])
         #expect(
-            Preflight.evaluate(logos: logos, loaded: [true, false, false]) == [
+            Preflight.evaluate(logos: logos, images: [urls[0]], probes: [:]) == [
                 Finding(severity: .warn, kind: .logo, detail: "2 · b.png"),
                 Finding(severity: .warn, kind: .logo, detail: "3 · c.png"),
             ])
+    }
+
+    @Test func aBrokenLoopWarnsLikeAMissingImageButNeverBlocks() {
+        let logos = [loop("a.mp4"), loop("b.mp4"), loop("c.mp4"), loop("d.mp4")]
+        let probes = [
+            logos[0].url: ownExport,
+            logos[1].url: ClipProbe(),
+            logos[2].url: probe { $0.playable = false },
+            logos[3].url: probe { $0.hasVideo = false },
+        ]
+        #expect(
+            Preflight.evaluate(logos: logos, images: [], probes: probes) == [
+                Finding(severity: .warn, kind: .logo, detail: "2 · b.mp4"),
+                Finding(severity: .warn, kind: .logo, detail: "3 · c.mp4"),
+                Finding(severity: .warn, kind: .logo, detail: "4 · d.mp4"),
+            ])
+    }
+
+    @Test func aLoopIsNotJudgedOnClipWarningsOrBeforeItsProbe() {
+        let odd = probe {
+            $0.width = 1280
+            $0.fps = 30
+            $0.hasAudio = false
+        }
+        let logos = [loop("a.mp4"), loop("b.mp4")]
+        #expect(Preflight.evaluate(logos: logos, images: [], probes: [logos[0].url: odd]) == [])
+    }
+
+    @Test func aNumberWithNoFileIsLeftToTheLogoCues() {
+        #expect(Preflight.evaluate(logos: [nil, image("b.png")], images: [image("b.png").url], probes: [:]) == [])
     }
 }
 

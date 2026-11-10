@@ -31,6 +31,11 @@ clip 04_four_by_three 15 "testsrc2=s=1440x1080" 30000/1001 "null" "04 4 by 3, 29
 
 ff -f lavfi -i "color=c=black:s=1920x1080:d=1" -vf "$(txt "EXAMPLE ORCHESTRA" 120 '(h-th)/2')" -frames:v 1 "$out/logos/orchestra.png"
 ff -f lavfi -i "color=c=black:s=1920x1080:d=1" -vf "$(txt "SPRING GALA 2026" 120 '(h-th)/2')" -frames:v 1 "$out/logos/event.png"
+# 4 s at 30 fps, every motion periodic in 4 s, so frame 120 would equal frame 0 and the loop has no seam.
+orbit="[0][1]overlay=x='W/2-20+700*cos(2*PI*t/4)':y='H/2-20+380*sin(2*PI*t/4)'"
+pulse="$(txt "SPRING GALA 2026" 120 '(h-th)/2'):alpha='0.7+0.3*cos(2*PI*t/4)'"
+ff -f lavfi -i "color=c=black:s=1920x1080:r=30" -f lavfi -i "color=c=white:s=40x40:r=30" \
+    -filter_complex "$orbit,$pulse" -frames:v 120 -an "${enc[@]}" "$out/logos/event_loop.mp4"
 
 cat > "$out/clips/clips.movie.json" <<'EOF'
 { "format": 1, "title": "Sample film",
@@ -44,12 +49,13 @@ cat > "$out/clips/clips.movie.json" <<'EOF'
 EOF
 
 cat > "$out/samples.concert.json" <<'EOF'
-{ "format": 1, "title": "Sample concert", "logos": ["logos/orchestra.png", "logos/event.png"],
+{ "format": 1, "title": "Sample concert", "logos": ["logos/orchestra.png", { "loop": "logos/event_loop.mp4" }],
   "items": [
     { "type": "black" },
     { "type": "movie", "file": "clips/clips.movie.json" },
     { "type": "break", "minutes": 1, "countdown": true, "text": "Szünet" },
-    { "type": "logo", "logo": 1 } ] }
+    { "type": "logo", "logo": 1 },
+    { "type": "logo", "logo": 2 } ] }
 EOF
 
 echo "samples in $out: $(ls "$out/clips" | tr '\n' ' ')"

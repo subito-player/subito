@@ -24,18 +24,26 @@ enum Check {
                 error: (error as? ShowError)?.description ?? "\(url.lastPathComponent): \(error.localizedDescription)")
         }
         let cues = document.cues
-        let clips = Set(cues.compactMap { cue -> URL? in if case .clip(_, let url) = cue.kind { url } else { nil } })
+        let logos = document.logos
+        // Loop logos are probed like clips.
+        let files = Set(
+            cues.compactMap { cue -> URL? in if case .clip(_, let url) = cue.kind { url } else { nil } }
+                + logos.compactMap { logo -> URL? in if case .loop(let url)? = logo { url } else { nil } })
         var probes: [URL: ClipProbe] = [:]
         await withTaskGroup(of: (URL, ClipProbe).self) { group in
-            for clip in clips {
-                group.addTask { (clip, await PreflightRunner.probe(clip)) }
+            for file in files {
+                group.addTask { (file, await PreflightRunner.probe(file)) }
             }
-            for await (clip, probe) in group { probes[clip] = probe }
+            for await (file, probe) in group { probes[file] = probe }
         }
-        let logos = document.logos
+        let images = Set(
+            logos.compactMap { logo -> URL? in
+                guard case .image(let url)? = logo, PreflightRunner.logoImage(at: url) != nil else { return nil }
+                return url
+            })
         let findings =
-            Preflight.evaluate(cues: cues, probes: probes, logoCount: logos.count)
-            + Preflight.evaluate(logos: logos, loaded: logos.map { PreflightRunner.logoImage(at: $0) != nil })
+            Preflight.evaluate(cues: cues, probes: probes, logos: logos)
+            + Preflight.evaluate(logos: logos, images: images, probes: probes)
         return CheckReport(show: path, title: document.title, cues: cues, findings: findings)
     }
 }

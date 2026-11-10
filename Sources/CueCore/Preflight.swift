@@ -132,8 +132,8 @@ public enum Preflight {
         return findings
     }
 
-    // A cue whose file was never probed counts as missing; a logo number the show lacks shows black.
-    public static func evaluate(cues: [Cue], probes: [URL: ClipProbe], logoCount: Int) -> [Finding] {
+    // A cue whose file was never probed counts as missing; a logo number with no file shows black.
+    public static func evaluate(cues: [Cue], probes: [URL: ClipProbe], logos: [LogoFile?]) -> [Finding] {
         cues.indices.flatMap { index -> [Finding] in
             switch cues[index].kind {
             case .clip(let clip, let url):
@@ -142,7 +142,7 @@ public enum Preflight {
                     finding.cueIndex = index
                     return finding
                 }
-            case .logo(let number) where number < 1 || number > logoCount:
+            case .logo(let number) where !logos.indices.contains(number - 1) || logos[number - 1] == nil:
                 return [Finding(severity: .warn, cueIndex: index, kind: .logoNumber, detail: "\(number)")]
             default:
                 return []
@@ -150,10 +150,22 @@ public enum Preflight {
         }
     }
 
-    // A logo that fails to load shows black; `loaded[i]` says whether `logos[i]` did.
-    public static func evaluate(logos: [URL], loaded: [Bool]) -> [Finding] {
-        zip(logos, loaded).enumerated().compactMap { index, entry in
-            entry.1 ? nil : Finding(severity: .warn, kind: .logo, detail: "\(index + 1) · \(entry.0.lastPathComponent)")
+    // A logo that cannot show is black, so only a warning; `images` holds the image files that decoded.
+    public static func evaluate(logos: [LogoFile?], images: Set<URL>, probes: [URL: ClipProbe]) -> [Finding] {
+        logos.enumerated().compactMap { index, logo in
+            guard let logo, !shows(logo, images: images, probes: probes) else { return nil }
+            return Finding(severity: .warn, kind: .logo, detail: "\(index + 1) · \(logo.url.lastPathComponent)")
+        }
+    }
+
+    // A loop is judged like a clip; one not probed yet waits, as a clip does.
+    private static func shows(_ logo: LogoFile, images: Set<URL>, probes: [URL: ClipProbe]) -> Bool {
+        switch logo {
+        case .image(let url):
+            return images.contains(url)
+        case .loop(let url):
+            guard let probe = probes[url] else { return true }
+            return !evaluate(clip: Clip(file: url.lastPathComponent), probe: probe).contains { $0.severity == .block }
         }
     }
 

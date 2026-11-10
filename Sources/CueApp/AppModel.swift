@@ -157,7 +157,6 @@ final class AppModel {
     @ObservationIgnored private var cancelledField: Field?
     @ObservationIgnored private var dragged: (place: Place, token: String)?
     @ObservationIgnored private var probes: [URL: ClipProbe] = [:]
-    @ObservationIgnored private var logoFindings: [Finding] = []
     @ObservationIgnored private(set) var quitConfirmed = false
     @ObservationIgnored private var noticeAt = Date.distantPast
     @ObservationIgnored private var outputPendingUntil = Date.distantPast
@@ -345,8 +344,6 @@ final class AppModel {
             Log.info("open \(document.url.path)")
             run(state.replaceCues(document.cues), label: "open", receivedAt: ProcessInfo.processInfo.systemUptime)
             probes = [:]
-            let logos = document.logos
-            logoFindings = Preflight.evaluate(logos: logos, loaded: logos.indices.map { engine.logo($0 + 1) != nil })
             checkShow()
             return true
         } catch {
@@ -681,6 +678,11 @@ final class AppModel {
         }
     }
 
+    // A video becomes a loop, anything else an image.
+    func setLogoFile(_ number: Int, _ url: URL?) {
+        edit(.setLogoFile(number, url.map { Self.isVideo($0) ? .loop($0.path) : .image($0.path) }))
+    }
+
     func setCountdown(_ place: Place, _ on: Bool) {
         commitDrafts()
         guard let item = breakItem(at: place) else { return }
@@ -743,6 +745,15 @@ final class AppModel {
         case .success(let result):
             Log.info("edit \(Self.describe(op))")
             self.document = result.document
+            if result.document.logos != document.logos { engine.setLogos(result.document.logos) }
+            // A picked file is probed again, so a re-exported loop is not judged by its old probe.
+            let logos = result.document.logos
+            if case .setLogoFile(let number, _?) = op, logos.indices.contains(number - 1),
+                let picked = logos[number - 1]
+            {
+                probes[picked.url] = nil
+                durations[picked.url] = nil
+            }
             // Items may have shifted: a pending delete must never land on another item.
             deletePending = nil
             switch op {
@@ -938,8 +949,12 @@ final class AppModel {
     // Probes run off the main thread and are kept per file, so an edit probes only the clips it added.
     private func checkShow() {
         showCheck?.cancel()
+        // Loop logos are probed like clips.
+        let loops = (document?.logos ?? []).compactMap { logo -> URL? in
+            if case .loop(let url)? = logo { url } else { nil }
+        }
         let urls = Set(
-            state.cues.compactMap { cue -> URL? in if case .clip(_, let url) = cue.kind { url } else { nil } })
+            state.cues.compactMap { cue -> URL? in if case .clip(_, let url) = cue.kind { url } else { nil } } + loops)
         let missing = urls.subtracting(probes.keys)
         evaluateShow(pending: missing)
         checking = !missing.isEmpty
@@ -969,12 +984,12 @@ final class AppModel {
     // A clip still being probed stays out until its probe arrives, instead of showing as missing.
     private func evaluateShow(pending: Set<URL>) {
         let cues = state.cues
-        let logoCount = document?.logos.count ?? 0
-        let findings = Preflight.evaluate(cues: cues, probes: probes, logoCount: logoCount).filter { finding in
+        let logos = document?.logos ?? []
+        let findings = Preflight.evaluate(cues: cues, probes: probes, logos: logos).filter { finding in
             guard let index = finding.cueIndex, case .clip(_, let url) = cues[index].kind else { return true }
             return !pending.contains(url)
         }
-        showFindings = findings + logoFindings
+        showFindings = findings + Preflight.evaluate(logos: logos, images: Set(engine.images.keys), probes: probes)
     }
 
     private func probed(_ url: URL, _ probe: ClipProbe) {
