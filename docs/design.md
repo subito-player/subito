@@ -212,6 +212,8 @@ the app is dead the projector shows the desktop: checklist says "switch to backu
 - Sleep: `ProcessInfo.beginActivity(.idleDisplaySleepDisabled, .idleSystemSleepDisabled)` for the app's lifetime.
 - Display: `CGDisplayRegisterReconfigurationCallback` (begin flag -> hide output), `CGDisplayCopyAllDisplayModes`
   for Hz, `CGDisplayIsInMirrorSet`. Power: `IOPSGetProvidingPowerSourceType`.
+- Icon: `design/AppIcon.icon` (Icon Composer; default and dark appearance), compiled by `actool` in `make app`; logo
+  files in `design/logo/`.
 - Logs: `~/Library/Logs/<name>/YYYY-MM-DD.log`, plain lines, keep 14 days. State: `~/Library/Application Support/<bundle id>/`.
 - Refresh rate guidance (doc): prefer 23.976 > 47.95 > 71.93 > 24 > 48 > 72 > 60 Hz on the projector. App never
   changes display modes itself.
