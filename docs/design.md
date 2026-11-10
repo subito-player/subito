@@ -91,6 +91,7 @@ disappears and the screen holds. Rendered content, not UI.
 | Esc | nothing | Cmd+Q | quit (press twice; concert: press twice + click) |
 | Ctrl+Opt+D | toggle Advanced view | | |
 
+A stray Shift or Option still reaches the other keys; digits arm only with no modifier held.
 Last key and its action are shown in the control window.
 
 **No modal dialogs during a show.** Every confirmation is "press again within 3 s", shown as a banner, so Enter or
