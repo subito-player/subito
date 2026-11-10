@@ -29,6 +29,8 @@ struct TopBar: View {
 
 struct BarButton: View {
     let text: String
+    // A pending press-twice confirmation.
+    var on = false
     let action: () -> Void
 
     var body: some View {
@@ -39,8 +41,9 @@ struct BarButton: View {
                 .minimumScaleFactor(0.7)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 3)
-                .background(Palette.raise, in: RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Palette.line))
+                .foregroundStyle(on ? AnyShapeStyle(Color.white) : AnyShapeStyle(.foreground))
+                .background(on ? Palette.confirm : Palette.raise, in: RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(on ? Palette.confirm : Palette.line))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

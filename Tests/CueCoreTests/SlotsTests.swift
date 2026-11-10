@@ -203,3 +203,93 @@ private func merge(_ concert: Concert?) -> [Picture?] {
         #expect(!refuses(.go, cover: nil, showable: []))
     }
 }
+
+// Logo 1 and slot 1 are this concert's own (slot 1 written relative to a folder beside the show), slot 2 is "" here.
+private let gala = Concert(
+    title: "Gala", logos: [.image("logos/own.png")],
+    slots: [.own(SlotEntry(name: "Sponsor 2026", file: "../Common/sponsor.mp4")), .empty])
+
+private func own(_ name: String, _ file: String) -> SlotOverride {
+    .own(SlotEntry(name: name, file: file))
+}
+
+private func shown(_ number: Int, _ concert: Concert?) -> Picture? {
+    merge(concert)[number - 1]
+}
+
+@Suite struct PictureWriteTests {
+    private func write(_ change: PictureChange, _ number: Int, _ scope: PictureScope, _ concert: Concert?)
+        -> PictureWrite?
+    {
+        Pictures.write(change, to: number, shown: shown(number, concert), concert: concert, scope: scope)
+    }
+
+    // Only the file changed on a default slot: the concert's copy, or the new default, keeps the default's name.
+    @Test func aNewFileKeepsTheNameShown() {
+        let sponsor = own("Sponsor", "/show/slots/new.mp4")
+        #expect(write(.file("/show/slots/new.mp4"), 3, .thisConcert, nil) == PictureWrite(concert: sponsor))
+        #expect(write(.file("/show/slots/new.mp4"), 3, .everyConcert, nil) == PictureWrite(defaultSet: sponsor))
+        #expect(write(.file("/set/new.png"), 5, .thisConcert, gala) == PictureWrite(concert: own("", "/set/new.png")))
+    }
+
+    @Test func aNewNameKeepsTheFileAsTheConcertWroteIt() {
+        #expect(
+            write(.name("Sponsor 2027"), 3, .thisConcert, gala)
+                == PictureWrite(concert: own("Sponsor 2027", "../Common/sponsor.mp4")))
+        #expect(
+            write(.name("Thank you"), 4, .thisConcert, nil)
+                == PictureWrite(concert: own("Thank you", "/set/thanks.MOV")))
+        #expect(write(.name("Encore"), 5, .thisConcert, nil) == nil)
+    }
+
+    // Every concert includes this one: the default changes and this concert's own setting goes, so nothing is hidden.
+    @Test func everyConcertAlsoDropsThisConcertsOwnSetting() {
+        let resolved = ShowLoader.resolve("../Common/sponsor.mp4", relativeTo: concertURL).path
+        #expect(
+            write(.name("Sponsor 2027"), 3, .everyConcert, gala)
+                == PictureWrite(defaultSet: own("Sponsor 2027", resolved), concert: .useDefault))
+        #expect(write(.empty, 4, .everyConcert, gala) == PictureWrite(defaultSet: .empty, concert: .useDefault))
+        #expect(
+            write(.file("/set/new.png"), 1, .everyConcert, gala)
+                == PictureWrite(defaultSet: own("", "/set/new.png"), concert: .useDefault))
+        #expect(write(.empty, 6, .everyConcert, gala) == PictureWrite(defaultSet: .empty))
+    }
+
+    // Logos have no name: "Logo 1" on the button comes from the merge, never from the file.
+    @Test func aLogoIsWrittenWithoutAName() {
+        #expect(
+            write(.file("/set/event.mov"), 2, .thisConcert, gala) == PictureWrite(concert: own("", "/set/event.mov")))
+        #expect(write(.name("Orchestra"), 1, .thisConcert, nil) == nil)
+    }
+
+    @Test func emptyUnderThisConcertOnlyTouchesTheConcert() {
+        #expect(write(.empty, 3, .thisConcert, gala) == PictureWrite(concert: .empty))
+    }
+}
+
+@Suite struct PictureInspectorTests {
+    @Test func backToDefaultOnlyWhereTheConcertSetsThePictureItself() {
+        #expect(Pictures.concertOverrides(1, in: gala))
+        #expect(!Pictures.concertOverrides(2, in: gala))
+        #expect(Pictures.concertOverrides(3, in: gala))
+        #expect(Pictures.concertOverrides(4, in: gala))
+        #expect(!Pictures.concertOverrides(5, in: gala))
+        #expect(Pictures.concertOverrides(2, in: Concert(title: "T", logos: [nil, .image("")])))
+        #expect(!Pictures.concertOverrides(3, in: nil))
+    }
+
+    @Test func emptyIsOfferedOnlyWhereTheScopeHasSomethingToClear() {
+        func canEmpty(_ number: Int, _ scope: PictureScope, _ concert: Concert? = gala) -> Bool {
+            Pictures.canEmpty(number, shown: shown(number, concert), defaults: defaults, concert: concert, scope: scope)
+        }
+        #expect(canEmpty(3, .thisConcert))
+        // Emptied here already, though the default has Thanks.
+        #expect(!canEmpty(4, .thisConcert))
+        #expect(canEmpty(4, .everyConcert))
+        #expect(!canEmpty(5, .everyConcert))
+        // "Gone" has no file, so the default holds nothing there.
+        #expect(!canEmpty(7, .everyConcert))
+        #expect(canEmpty(5, .everyConcert, Concert(title: "T", slots: [.useDefault, .useDefault, .empty])))
+        #expect(canEmpty(1, .everyConcert, nil))
+    }
+}

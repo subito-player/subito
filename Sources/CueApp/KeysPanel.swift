@@ -33,7 +33,8 @@ struct KeysPanel: View {
             }
         }
         .frame(width: 680)
-        .frame(maxHeight: 560)
+        // Ends above the button area at 1440x900, so GO stays visible; the list scrolls.
+        .frame(maxHeight: 420)
         .background(Palette.panel, in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Palette.line))
         .shadow(color: .black.opacity(0.5), radius: 12)

@@ -59,7 +59,7 @@ public struct Cue: Equatable, Sendable {
 }
 
 public enum ShowLoader {
-    static let playableExtensions: Set<String> = ["mp4", "mov", "m4v"]
+    public static let playableExtensions: Set<String> = ["mp4", "mov", "m4v"]
     // Listed so preflight marks them red and the converter can offer an MP4.
     private static let convertibleExtensions: Set<String> = [
         "mkv", "webm", "avi", "wmv", "flv", "mpg", "mpeg", "ts", "mts", "m2ts",

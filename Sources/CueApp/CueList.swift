@@ -255,46 +255,16 @@ private struct Inspector: View {
         let s = model.strings
         VStack(alignment: .leading, spacing: 8) {
             field(model.document?.concert == nil ? s.movieTitle : s.concertTitle, .showTitle)
-            logos(s)
-            if let place = model.selection, let item = model.document?.item(at: place) {
+            if let number = model.selectedPicture {
+                Palette.line.frame(height: 1)
+                PictureInspector(model: model, pickers: pickers, number: number)
+            } else if let place = model.selection, let item = model.document?.item(at: place) {
                 Palette.line.frame(height: 1)
                 fields(place, item, s)
             }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private func logos(_ s: Strings) -> some View {
-        if model.document?.concert == nil {
-            Text(s.movieHasNoLogos).foregroundStyle(Palette.dim).lineLimit(2)
-        } else {
-            let logos = model.document?.logos ?? []
-            ForEach(1...2, id: \.self) { number in
-                let file = logos.indices.contains(number - 1) ? logos[number - 1] : nil
-                HStack(spacing: 6) {
-                    Text("\(s.logo) \(number)").foregroundStyle(Palette.dim).frame(width: 130, alignment: .leading)
-                    BarButton(text: s.logoFile) { pickers.logoFile(number) }
-                    Button {
-                        model.setLogoFile(number, nil)
-                    } label: {
-                        Image(systemName: "xmark.circle")
-                            .foregroundStyle(Palette.dim)
-                            .padding(4)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .focusable(false)
-                    .disabled(file == nil)
-                    .opacity(file == nil ? 0.4 : 1)
-                    Text(file?.url.lastPathComponent ?? s.noLogoFile)
-                        .foregroundStyle(file == nil ? Palette.dim : Palette.fg)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-            }
-        }
     }
 
     @ViewBuilder
@@ -335,6 +305,89 @@ private struct Inspector: View {
 
     private func field(_ label: String, _ field: Field, placeholder: String = "") -> some View {
         EditField(model: model, label: label, field: field, placeholder: placeholder).id(field)
+    }
+}
+
+// A logo or slot picked in the button row; "Saved for" is where the next change goes.
+private struct PictureInspector: View {
+    let model: AppModel
+    let pickers: Pickers
+    let number: Int
+
+    var body: some View {
+        let s = model.strings
+        let shown = model.pictures[number - 1]
+        let concert = model.document?.concert
+        let own = Pictures.concertOverrides(number, in: concert)
+        let canEmpty = Pictures.canEmpty(
+            number, shown: shown, defaults: model.defaultSlots, concert: concert, scope: model.pictureScope)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text(s.pictureTitle(number)).font(.system(size: 15, weight: .bold))
+                if shown != nil || own { SourceTag(own: own, strings: s) }
+            }
+            // First, so a form filled top to bottom saves where it was meant to.
+            labelled(s.savedFor) {
+                if concert != nil {
+                    VStack(alignment: .leading, spacing: 4) {
+                        radio(s.thisConcertOnly, .thisConcert)
+                        radio(s.everyConcert, .everyConcert)
+                    }
+                } else {
+                    Text(s.everyConcert)
+                }
+            }
+            if number > logoCount, shown != nil {
+                EditField(
+                    model: model, label: s.pictureName, field: .pictureName(number),
+                    placeholder: Pictures.slotName(nil, number: number)
+                )
+                .id(Field.pictureName(number))
+            }
+            labelled(s.pictureFile) {
+                Text(shown?.file.url.lastPathComponent ?? s.noPictureFile)
+                    .foregroundStyle(shown == nil ? Palette.dim : Palette.fg)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 6)
+                BarButton(text: s.choosePicture) { pickers.pictureFile(number) }
+            }
+            labelled(s.pictureKey) {
+                Text(s.key(for: .command(.toggleCover(.logo(number))))).font(.system(size: 14, design: .monospaced))
+            }
+            HStack(spacing: 6) {
+                if own { BarButton(text: s.backToDefault) { model.resetPicture(number) } }
+                if canEmpty {
+                    BarButton(text: s.emptyPicture, on: model.emptyPending == number) {
+                        model.requestEmptyPicture(number)
+                    }
+                }
+            }
+            .padding(.leading, 140)
+        }
+    }
+
+    private func labelled(_ label: String, @ViewBuilder _ content: () -> some View) -> some View {
+        HStack(spacing: 10) {
+            Text(label).foregroundStyle(Palette.dim).lineLimit(1).frame(width: 130, alignment: .leading)
+            content()
+        }
+    }
+
+    private func radio(_ text: String, _ scope: PictureScope) -> some View {
+        let on = model.pictureScope == scope
+        return Button {
+            model.setPictureScope(scope)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: on ? "largecircle.fill.circle" : "circle")
+                    .foregroundStyle(on ? Palette.confirm : Palette.dim)
+                Text(text).foregroundStyle(on ? Palette.fg : Palette.dim).lineLimit(1)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
     }
 }
 

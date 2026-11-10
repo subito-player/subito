@@ -38,7 +38,7 @@ struct Pickers {
     var newConcert: () -> Void
     var addClips: () -> Void
     var addMovie: () -> Void
-    var logoFile: (Int) -> Void
+    var pictureFile: (Int) -> Void
 }
 
 struct ControlView: View {
@@ -161,6 +161,8 @@ private struct BannerRow: View {
                 banner(s.confirmPresentation(presentation), Palette.confirm)
             case .confirmDelete(let place)?:
                 banner(s.confirmDelete(name(of: place, s)), Palette.confirm)
+            case .confirmEmpty(let number)?:
+                banner(s.confirmEmpty(s.picture(number)), Palette.confirm)
             case .confirm(.confirmQuitClick)?:
                 // The concert quit's last step is this click, never a key.
                 Button(action: model.confirmQuitByClick) {

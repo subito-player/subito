@@ -41,6 +41,7 @@ enum Banner: Equatable {
     case confirmOutput(OutputChoice)
     case confirmPresentation(OutputPresentation)
     case confirmDelete(Place)
+    case confirmEmpty(Int)
     case confirm(Notice)
     case noProjector
 }
@@ -66,6 +67,7 @@ enum EditNotice: Error, Equatable {
     case concertAsMovie
     case convertWhileRunning
     case convertFailed(file: String, Conversion.Failure)
+    case clickSelects
 }
 
 // An inspector field; its place pins a draft to one item, so it never lands on another.
@@ -78,6 +80,7 @@ enum Field: Hashable {
     case tail(Place)
     case breakText(Place)
     case breakMinutes(Place)
+    case pictureName(Int)
 }
 
 // Shown from a crash relaunch until the first GO.
@@ -155,6 +158,11 @@ final class AppModel {
     private(set) var editing = false
     private(set) var selection: Place?
     private(set) var deletePending: Place?
+    // A logo or slot picked in edit mode; never together with a row selection.
+    private(set) var selectedPicture: Int?
+    // Back to This concert only on every new picture selection, so the default changes only on purpose.
+    private(set) var chosenScope = PictureScope.thisConcert
+    private(set) var emptyPending: Int?
     private(set) var editNotice: EditNotice?
     private(set) var drafts: [Field: String] = [:]
 
@@ -164,6 +172,7 @@ final class AppModel {
     @ObservationIgnored private var appliedMode = Mode.rehearsal
     @ObservationIgnored private var appliedUnlock = false
     @ObservationIgnored private var deletePendingUntil = Date.distantPast
+    @ObservationIgnored private var emptyPendingUntil = Date.distantPast
     @ObservationIgnored private var editNoticeAt = Date.distantPast
     @ObservationIgnored private var focusedField: Field?
     // Esc'd until focused again, so the field's own end-of-editing write cannot bring the text back.
@@ -272,6 +281,7 @@ final class AppModel {
         if let outputPending { return .confirmOutput(outputPending) }
         if let presentationPending { return .confirmPresentation(presentationPending) }
         if let deletePending { return .confirmDelete(deletePending) }
+        if let emptyPending { return .confirmEmpty(emptyPending) }
         if let pending { return .confirm(pending) }
         return output == .missing ? .noProjector : nil
     }
@@ -328,6 +338,7 @@ final class AppModel {
             update(\.outputPending, nil)
             update(\.presentationPending, nil)
             update(\.deletePending, nil)
+            update(\.emptyPending, nil)
         }
         if let chord {
             lastKey = LastKey(chord: chord, result: .command(command))
@@ -370,7 +381,9 @@ final class AppModel {
             recoveryNotice = nil
             loadErrors.removeAll()
             selection = nil
+            selectedPicture = nil
             deletePending = nil
+            emptyPending = nil
             dragged = nil
             drafts = [:]
             focusedField = nil
@@ -654,7 +667,9 @@ final class AppModel {
         editing = !editing && canEdit && document != nil
         if !editing {
             selection = nil
+            selectedPicture = nil
             deletePending = nil
+            emptyPending = nil
         }
     }
 
@@ -662,11 +677,77 @@ final class AppModel {
         guard selection != place else { return }
         commitDrafts()
         selection = place
+        selectedPicture = nil
+        emptyPending = nil
+    }
+
+    // Edit mode selects; without a numpad the click is the only way to show a slot, so the status line says so.
+    func clickPicture(_ number: Int) {
+        guard editing else { return send(.toggleCover(.logo(number))) }
+        selectPicture(number)
+        showEditNotice(.clickSelects)
+    }
+
+    func selectPicture(_ number: Int) {
+        guard editing, (1...pictureCount).contains(number), selectedPicture != number else { return }
+        commitDrafts()
+        selection = nil
+        deletePending = nil
+        emptyPending = nil
+        selectedPicture = number
+        chosenScope = .thisConcert
+    }
+
+    // A single movie has no concert to save into.
+    var pictureScope: PictureScope {
+        document?.concert == nil ? .everyConcert : chosenScope
+    }
+
+    // A typed name is saved where it was typed for, before the scope changes.
+    func setPictureScope(_ scope: PictureScope) {
+        commitDrafts()
+        emptyPending = nil
+        chosenScope = scope
+    }
+
+    func setPictureFile(_ number: Int, _ url: URL) {
+        writePicture(number, .file(url.path))
+    }
+
+    func resetPicture(_ number: Int) {
+        edit(.setPicture(number, .useDefault))
+    }
+
+    // Press twice within the confirm window, like delete.
+    func requestEmptyPicture(_ number: Int) {
+        advanced.stopStress(reason: "empty click")
+        deletePending = nil
+        let now = Date()
+        guard emptyPending == number, now < emptyPendingUntil else {
+            emptyPending = number
+            emptyPendingUntil = now.addingTimeInterval(ShowState.confirmWindow)
+            return
+        }
+        emptyPending = nil
+        writePicture(number, .empty)
+    }
+
+    // Drafts first, so a name typed just before a file pick is the name the file keeps.
+    private func writePicture(_ number: Int, _ change: PictureChange) {
+        commitDrafts()
+        let shown = pictures.indices.contains(number - 1) ? pictures[number - 1] : nil
+        let concert = document?.concert
+        guard let write = Pictures.write(change, to: number, shown: shown, concert: concert, scope: pictureScope)
+        else { return }
+        // The concert's setting first, so the new default file is the one shown when its probe is reset.
+        if let override = write.concert { edit(.setPicture(number, override)) }
+        if let override = write.defaultSet { setDefaultPicture(number, override) }
     }
 
     // Press twice within the confirm window; a delete cannot be undone.
     func requestDelete(_ place: Place) {
         advanced.stopStress(reason: "delete click")
+        emptyPending = nil
         let now = Date()
         guard deletePending == place, now < deletePendingUntil else {
             deletePending = place
@@ -762,11 +843,6 @@ final class AppModel {
         }
     }
 
-    // An MP4, MOV or M4V becomes a loop, anything else an image; nil drops the concert's own file.
-    func setLogoFile(_ number: Int, _ url: URL?) {
-        edit(.setPicture(number, url.map { .own(SlotEntry(name: "", file: $0.path)) } ?? .useDefault))
-    }
-
     // Edit mode only; .useDefault and .empty both clear it. Applied to the file as it is now, so hand edits stay.
     func setDefaultPicture(_ number: Int, _ change: SlotOverride) {
         guard canEdit, (1...pictureCount).contains(number) else { return }
@@ -830,6 +906,10 @@ final class AppModel {
 
     func commit(_ field: Field) {
         guard let text = drafts.removeValue(forKey: field), text != value(of: field) else { return }
+        // The scope, not an Edit, decides where a picture name goes.
+        if case .pictureName(let number) = field {
+            return writePicture(number, .name(text.trimmingCharacters(in: .whitespacesAndNewlines)))
+        }
         switch change(field, to: text) {
         case .success(let op): perform(op)
         case .failure(let notice): showEditNotice(notice)
@@ -855,7 +935,9 @@ final class AppModel {
             deletePending = nil
             switch op {
             case .delete: selection = nil
-            case .insert, .insertClips, .insertMovie, .move: selection = result.touched
+            case .insert, .insertClips, .insertMovie, .move:
+                selection = result.touched
+                if selection != nil { selectedPicture = nil }
             default: break
             }
             for file in result.changed { write(file, of: result.document) }
@@ -902,6 +984,7 @@ final class AppModel {
         case .tail(let place): clip(at: place)?.tailS.map(Clock.text) ?? ""
         case .breakText(let place): breakItem(at: place)?.text ?? ""
         case .breakMinutes(let place): breakItem(at: place).map { String(format: "%g", $0.minutes) } ?? ""
+        case .pictureName(let number): pictures.indices.contains(number - 1) ? pictures[number - 1]?.name ?? "" : ""
         }
     }
 
@@ -932,6 +1015,9 @@ final class AppModel {
             let minutes = Double(trimmed.replacingOccurrences(of: ",", with: "."))
             guard let minutes, minutes.isFinite, minutes >= 0 else { return .failure(.invalidMinutes) }
             return .success(.setBreak(place, minutes: minutes, countdown: item.countdown))
+        case .pictureName:
+            // commit saves picture names itself, never through an Edit.
+            return .failure(.refused(.noSuchItem))
         }
     }
 
@@ -966,10 +1052,12 @@ final class AppModel {
             appliedUnlock = state.editUnlocked
             Log.info(appliedUnlock ? "editing unlocked" : "editing locked")
         }
-        guard !state.canEdit, editing || selection != nil || !drafts.isEmpty else { return }
+        guard !state.canEdit, editing || selection != nil || selectedPicture != nil || !drafts.isEmpty else { return }
         editing = false
         selection = nil
+        selectedPicture = nil
         deletePending = nil
+        emptyPending = nil
         drafts = [:]
     }
 
@@ -1012,6 +1100,7 @@ final class AppModel {
         if outputPending != nil, now >= outputPendingUntil { outputPending = nil }
         if presentationPending != nil, now >= presentationPendingUntil { presentationPending = nil }
         if deletePending != nil, now >= deletePendingUntil { deletePending = nil }
+        if emptyPending != nil, now >= emptyPendingUntil { emptyPending = nil }
         if editNotice != nil, now.timeIntervalSince(editNoticeAt) >= Self.noticeSeconds { editNotice = nil }
         var countdown: String?
         if case .breakScreen(let item, let startedAt) = state.base {

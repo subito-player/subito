@@ -458,6 +458,16 @@ extension ShowDocument {
             concert(try gala().apply(.setPicture(4, own("", "x")), live: nil).edited).slots == [.useDefault, .empty])
     }
 
+    // A rename sends the stored file back unchanged, so a hand-written "../" path is never made absolute.
+    @Test func aFileAlreadyStoredStaysAsWritten() throws {
+        let stored = Concert(title: "Gala", slots: [own("../Common/sponsor.mp4", "Sponsor")])
+        let document = ShowDocument(LoadedConcert(concert: stored, url: concertURL, movies: [:]))
+        let renamed = try document.apply(.setPicture(3, own("../Common/sponsor.mp4", "Sponsor 2026")), live: nil).edited
+        #expect(concert(renamed).slots == [own("../Common/sponsor.mp4", "Sponsor 2026")])
+        let moved = try document.apply(.setPicture(3, own("/show/slots/sponsor.mp4", "Sponsor")), live: nil).edited
+        #expect(concert(moved).slots == [own("slots/sponsor.mp4", "Sponsor")])
+    }
+
     @Test func aFileInsideTheShowFolderIsStoredRelativeAndOneOutsideAbsolute() throws {
         let inside = try gala().apply(.setPicture(3, own("/show/art/o.png")), live: nil).edited
         let relative = try gala().apply(.setPicture(3, own("art/o.png")), live: nil).edited

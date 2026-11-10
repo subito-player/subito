@@ -150,7 +150,88 @@ public struct Picture: Equatable, Sendable {
     }
 }
 
+// Where the picture inspector saves the next change.
+public enum PictureScope: Equatable, Sendable {
+    case thisConcert, everyConcert
+}
+
+// One picture inspector change; a new name or file keeps the other field of the picture shown now.
+public enum PictureChange: Equatable, Sendable {
+    case name(String)
+    case file(String)
+    case empty
+}
+
+// What one inspector change saves; nil leaves that side as it is.
+public struct PictureWrite: Equatable, Sendable {
+    public var defaultSet: SlotOverride?
+    public var concert: SlotOverride?
+
+    public init(defaultSet: SlotOverride? = nil, concert: SlotOverride? = nil) {
+        self.defaultSet = defaultSet
+        self.concert = concert
+    }
+}
+
+extension Concert {
+    // This concert's own setting for picture n; a logo reads like a slot without a name.
+    public func pictureOverride(_ number: Int) -> SlotOverride {
+        if number <= logoCount {
+            guard logos.indices.contains(number - 1), let logo = logos[number - 1] else { return .useDefault }
+            return logo.path.isEmpty ? .empty : .own(SlotEntry(name: "", file: logo.path))
+        }
+        let index = number - logoCount - 1
+        return slots.indices.contains(index) ? slots[index] : .useDefault
+    }
+}
+
 public enum Pictures {
+    // nil when there is nothing to write: a name for a logo, or for a picture with no file.
+    // Every concert includes this one, so it also drops this concert's own setting and the change shows at once.
+    public static func write(
+        _ change: PictureChange, to number: Int, shown: Picture?, concert: Concert?, scope: PictureScope
+    ) -> PictureWrite? {
+        let isSlot = number > logoCount
+        let stored = concert?.pictureOverride(number) ?? .useDefault
+        let override: SlotOverride
+        switch change {
+        case .empty:
+            override = .empty
+        case .name(let name):
+            guard isSlot, let shown else { return nil }
+            var file = shown.file.url.path
+            // As the concert wrote it, so a relative path outside the show folder stays relative.
+            if scope == .thisConcert, shown.source == .concert, case .own(let own) = stored { file = own.file }
+            override = .own(SlotEntry(name: name, file: file))
+        case .file(let file):
+            override = .own(SlotEntry(name: isSlot ? shown?.name ?? "" : "", file: file))
+        }
+        switch scope {
+        case .thisConcert:
+            return PictureWrite(concert: override)
+        case .everyConcert:
+            return PictureWrite(defaultSet: override, concert: stored == .useDefault ? nil : .useDefault)
+        }
+    }
+
+    // Back to default has work to do: the concert has its own file, or "" over the default.
+    public static func concertOverrides(_ number: Int, in concert: Concert?) -> Bool {
+        (concert?.pictureOverride(number) ?? .useDefault) != .useDefault
+    }
+
+    // Empty this slot only where the scope has something to clear; Every concert clears this concert too.
+    public static func canEmpty(
+        _ number: Int, shown: Picture?, defaults: SlotSet, concert: Concert?, scope: PictureScope
+    ) -> Bool {
+        switch scope {
+        case .thisConcert:
+            return shown != nil
+        case .everyConcert:
+            let fromDefault = entry(merge(defaults: defaults, concert: nil, concertURL: nil), number - 1)
+            return fromDefault != nil || concertOverrides(number, in: concert)
+        }
+    }
+
     // Always `pictureCount` entries, nil where nothing shows; concert paths resolve against the concert file.
     public static func merge(defaults: SlotSet, concert: Concert?, concertURL: URL?) -> [Picture?] {
         func picture(_ name: String, _ logo: Logo?, _ source: PictureSource) -> Picture? {
