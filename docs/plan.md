@@ -25,3 +25,77 @@ Estimate: A ~1 h, B ~3 h more, C ~3 h more, D ~2 h more (wall clock, me working)
 2. **Logo fade**: L / Shift+L cover fades in and out over 0.5 s; BLACK and GO stay instant cuts.
 3. **Converter**: preflight panel "Konvertálás" on blocked clips; ffmpeg (Homebrew, Nix, or `nix shell`) remux first, hardware H.264 transcode if needed; new file next to the original, show updated; rehearsal only, never while a clip is live.
 4. **Looping logos**: `{ "loop": "file.mp4" }` logos play as a muted seamless loop; concert inspector picks logo 1 and 2 files (image or video).
+
+## v0.3: slots (started 2026-11-10, owner wants it for the 2026-11-13 rehearsal)
+
+Spec: `slots.md` (mockup: private canvas linked there). Goal: a row of logos and slots the operator prepared, each one
+press away, as covers like Logo 1 and 2. One branch + PR per task, implementer (Opus) + reviewer per task.
+
+**Architecture:** a slot is a logo number. Pictures 1 and 2 are Logo 1 and 2, pictures 3 to 8 are slots 1 to 6, and
+the existing cover path (`Cover.logo(n)`, `PlaybackEngine.setLogos`, logo fade, loop players) shows them unchanged.
+New: a default set on the Mac, per-concert overrides, a merged list of 8 pictures fed to the engine, keypad keys,
+the two-row button area and the slot inspector.
+
+**Constraints:** CueCore Foundation-only; no new dependencies; HU + EN strings in `Strings.swift`; no em dashes; files
+end with one newline; agents never commit or launch the app; `make lint test app` green before every PR.
+
+**Review focus** (each gets a test in its task):
+1. The owner's existing `keymap.json` is the old default: after the upgrade slots must have keys; a customised file
+   is never overwritten (task 1).
+2. Old concert files (`logos` with `""` entries, no `slots`) load and show the same, and a save adds no `slots` key
+   when nothing is overridden (task 1).
+3. A slot file that is missing or can't play (moved folder, default set path gone) shows black like a missing logo,
+   preflight names it, nothing crashes (tasks 1, 2).
+4. Locked concert: slot presses work, slot editing is impossible (task 3).
+5. A single movie open (no concert): the default set shows; "This concert only" is unavailable (tasks 2, 3).
+
+### Task 1: core (CueCore + KeyInput)
+
+- `Sources/CueCore/Slots.swift`: `pictureCount = 8`; `SlotEntry { name: String, file: String }` (video extension
+  mp4/mov/m4v = loop, else image); `SlotOverride { useDefault, empty, own(SlotEntry) }` coded as `null` / `""` /
+  object; `SlotSet { format, logos: [Logo?] (2), slots: [SlotEntry?] (6) }` = the default set, absolute paths;
+  `PictureSource { defaultSet, concert }`; `Picture { name, file: LogoFile, source }`;
+  `Pictures.merge(defaults: SlotSet, concert: Concert?, concertURL: URL?) -> [Picture?]` (always 8; logos named
+  "Logo 1"/"Logo 2").
+- `Models.swift`: `Concert.logos` becomes `[Logo?]` (null = default, `""` = empty here, path = own); `Concert.slots:
+  [SlotOverride]` (missing = []; encoded only when non-empty; trailing defaults trimmed in both arrays).
+- `ShowDocument.swift`: `Edit.setPicture(Int /* 1...8 */, SlotOverride)` replaces `setLogoFile` (paths stored relative
+  as logos are today); logo cue items keep pointing at 1 or 2 only (no slot as a live item: owner said no GO slots).
+- `KeyMap.swift`: key names `Num0`...`Num9`; action `slot:N` (1...6) = `.toggleCover(.logo(N + 2))`; default map adds
+  `Num1`...`Num6`; loading a file whose bindings equal the v0.2 default rewrites it with the new default.
+- `Sources/CueApp/KeyInput.swift`: keypad keyCodes 82-92 give `Num0`...`Num9` (keypad digits stop arming).
+- Tests: merge matrix (default/empty/own for logos and slots, old `logos` files), concert round trip, `setPicture`,
+  keys (`Num1` -> logo 3, `1` -> arm 1), old-default keymap upgrade vs customised file kept, slot cover fades in from
+  nothing and cuts between pictures (`ShowState.fadesCover`).
+
+### Task 2: engine, default set, preflight (CueApp)
+
+- Default set store: load/save `~/Library/Application Support/<bundle id>/slots.json` (atomic; missing = empty set;
+  broken = empty set + red status line, never overwritten until the owner edits).
+- `AppModel`: `pictures: [Picture?]` = `Pictures.merge(...)`, recomputed on open, document edit and default-set edit;
+  engine, preflight and `--check` (`Check.swift`) use it instead of `document.logos`.
+- Preflight: every picture checked like logos today, findings named by slot name.
+- A cover press (key or click) on a picture that is empty or failed to load is refused before it reaches the state
+  machine: nothing on the projector changes, status line notice. Applies to L / Shift+L too.
+
+### Task 3: control window (CueApp UI)
+
+- `Transport.swift` `ButtonRow`: GO left of two rows, spanning both, about twice today's width. Row 1: Play, Restart,
+  -30, -5, +5, +30, BLACK, Sound. Row 2 "Logók és slotok" / "Logos and slots": 8 buttons (thumbnail from the decoded
+  image, "LOOP" label for videos; name; key; DEFAULT / CONCERT tag; dashed "empty"); amber ring on the active cover.
+  Click = the same command as the key.
+- Edit mode: clicking a logo or slot selects it (`selectedPicture: Int?`) instead of toggling it; keys still
+  toggle. Inspector: Name (slots only), File (Choose..., image or video), "Saved for" = where the next change goes
+  (starts at This concert only when a concert is open; only Every concert with a movie open), Back to default,
+  Empty (press twice). The concert inspector's Logo 1/2 pickers go (the slot row replaces them).
+- Strings HU + EN, cheat sheet lists slot keys.
+
+### Task 4: `?` key list (CueApp UI, parallel with task 1)
+
+- Top bar `?` button toggles a non-modal panel over the cue list with the active key map in the UI language (the
+  cheat sheet's content, in-app). Keys keep driving the show while it is open; works in both modes.
+
+### Task 5: docs and release
+
+- `design.md` (keys table: numpad slots, keypad digits no longer arm; control window; editor), `show-files.md`
+  (`slots`, `logos` null), `rehearsal-test.md` (slot TV checks), README. VERSION 0.3.0; owner TV check, then tag.

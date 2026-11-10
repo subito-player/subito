@@ -216,7 +216,8 @@ Deliverables with code: `docs/operator-checklist.md` (HU+EN, one page), generate
 H.264/HEVC, else hardware H.264 transcode; rehearsal only, never while a clip is running; new file next to the
 original); looping logos.
 
-**Later:** editor extras, bar numbers mapped to timestamps (park armed clip by bar), phone status mirror / rehearsal
+**Later:** slots (`slots.md`, designed, build after the first rehearsal; maybe later: move arming off the digit
+keys), editor extras, bar numbers mapped to timestamps (park armed clip by bar), phone status mirror / rehearsal
 remote, rehearsal timer, per-clip notes, Windows.
 
 ## To verify on hardware before Friday
