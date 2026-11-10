@@ -203,3 +203,49 @@ private func merge(_ concert: Concert?) -> [Picture?] {
         #expect(!refuses(.go, cover: nil, showable: []))
     }
 }
+
+@Suite struct PictureWriteTests {
+    private let sponsor = Picture(name: "Sponsor", file: image("/set/sponsor.png"), source: .defaultSet)
+
+    private func write(_ change: PictureChange, _ number: Int, _ shown: Picture?, _ scope: PictureScope)
+        -> PictureWrite?
+    {
+        Pictures.write(change, to: number, shown: shown, scope: scope)
+    }
+
+    // A concert's own copy of a default slot with only the file changed keeps the default's name.
+    @Test func aNewFileKeepsTheNameShown() {
+        let entry = SlotOverride.own(SlotEntry(name: "Sponsor", file: "/show/slots/sponsor.mp4"))
+        #expect(write(.file("/show/slots/sponsor.mp4"), 3, sponsor, .thisConcert) == .concert(entry))
+        #expect(write(.file("/show/slots/sponsor.mp4"), 3, sponsor, .everyConcert) == .defaultSet(entry))
+        #expect(
+            write(.file("/set/new.png"), 4, nil, .thisConcert)
+                == .concert(.own(SlotEntry(name: "", file: "/set/new.png"))))
+    }
+
+    // The shown file is the resolved absolute path; the concert edit stores it relative again.
+    @Test func aNewNameKeepsTheFileShown() {
+        let own = Picture(name: "Sponsor", file: loop("/show/slots/sponsor.mp4"), source: .concert)
+        #expect(
+            write(.name("Sponsor 2026"), 3, own, .thisConcert)
+                == .concert(.own(SlotEntry(name: "Sponsor 2026", file: "/show/slots/sponsor.mp4"))))
+        #expect(
+            write(.name("Thanks"), 3, sponsor, .everyConcert)
+                == .defaultSet(.own(SlotEntry(name: "Thanks", file: "/set/sponsor.png"))))
+        #expect(write(.name("Encore"), 5, nil, .thisConcert) == nil)
+    }
+
+    // Logos have no name: "Logo 1" on the button comes from the merge, never from the file.
+    @Test func aLogoIsWrittenWithoutAName() {
+        let logo = Picture(name: "Logo 1", file: image("/set/orchestra.png"), source: .defaultSet)
+        #expect(
+            write(.file("/set/event.mov"), 1, logo, .everyConcert)
+                == .defaultSet(.own(SlotEntry(name: "", file: "/set/event.mov"))))
+        #expect(write(.name("Orchestra"), 1, logo, .thisConcert) == nil)
+    }
+
+    @Test func emptyGoesWhereTheScopeSays() {
+        #expect(write(.empty, 3, sponsor, .thisConcert) == .concert(.empty))
+        #expect(write(.empty, 3, sponsor, .everyConcert) == .defaultSet(.empty))
+    }
+}

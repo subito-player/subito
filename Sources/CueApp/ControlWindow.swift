@@ -1,4 +1,5 @@
 import AppKit
+import CueCore
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -27,7 +28,7 @@ final class ControlWindow: NSWindow {
             newConcert: { [weak self] in self?.newConcert() },
             addClips: { [weak self] in self?.addClips() },
             addMovie: { [weak self] in self?.addMovie() },
-            logoFile: { [weak self] number in self?.chooseLogo(number) })
+            pictureFile: { [weak self] number in self?.choosePicture(number) })
         let host = NSHostingView(
             rootView: ControlView(model: model, focusControl: { [weak self] in self?.takeFocus() }, pickers: pickers))
         // The window size comes from the screen, never from the SwiftUI content.
@@ -166,17 +167,18 @@ final class ControlWindow: NSWindow {
         }
     }
 
-    // Starts in the show folder, where a pick is stored as a relative path.
-    private func chooseLogo(_ number: Int) {
+    // Starts in the show folder, where a concert pick is stored as a relative path; only these videos loop.
+    private func choosePicture(_ number: Int) {
         let s = model.strings
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
-        panel.allowedContentTypes = [.image, .movie]
+        panel.allowedContentTypes =
+            [.image] + ShowLoader.playableExtensions.sorted().compactMap { UTType(filenameExtension: $0) }
         panel.directoryURL = model.document?.url.deletingLastPathComponent()
-        panel.message = s.logoFileMessage(number)
+        panel.message = s.pictureFileMessage(number)
         panel.prompt = s.choose
         present(panel) { [weak self] urls in
-            if let url = urls.first { self?.model.setLogoFile(number, url) }
+            if let url = urls.first { self?.model.setPictureFile(number, url) }
         }
     }
 

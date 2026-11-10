@@ -246,19 +246,31 @@ struct Strings {
     var countdown: String { pick("Visszaszámlálás", "Countdown") }
     var logoNumber: String { pick("Logó", "Logo") }
     var nothingToSet: String { pick("Nincs mit beállítani", "Nothing to set") }
-    var logoFile: String { pick("Kép vagy videó…", "Image or video…") }
-    var noLogoFile: String { pick("nincs fájl", "no file") }
     var choose: String { pick("Kiválasztás", "Choose") }
-    var movieHasNoLogos: String {
-        pick(
-            "Önálló filmnek nincs logója, a logók a koncerthez tartoznak",
-            "A single movie has no logos, a concert does")
+    var pictureName: String { pick("Név", "Name") }
+    var pictureFile: String { pick("Fájl", "File") }
+    var noPictureFile: String { pick("nincs fájl", "no file") }
+    var choosePicture: String { pick("Választás…", "Choose…") }
+    var pictureKey: String { pick("Billentyű", "Key") }
+    var savedFor: String { pick("Mentés ide", "Saved for") }
+    var thisConcertOnly: String { pick("Csak ez a koncert", "This concert only") }
+    var everyConcert: String { pick("Minden koncert (alap)", "Every concert (default)") }
+    var backToDefault: String { pick("Vissza az alaphoz", "Back to default") }
+    var emptyPicture: String { pick("Kiürítés", "Empty this slot") }
+
+    // Fixed, unlike the button's name: "Logó 1", "Slot 3".
+    func pictureTitle(_ number: Int) -> String {
+        number > logoCount ? Pictures.slotName(nil, number: number) : "\(logo) \(number)"
     }
 
-    func logoFileMessage(_ number: Int) -> String {
+    func pictureFileMessage(_ number: Int) -> String {
         pick(
-            "Logó \(number): kép, vagy hang nélkül ismétlődő videó",
-            "Logo \(number): an image, or a video that loops silently")
+            "\(pictureTitle(number)): kép, vagy hang nélkül ismétlődő videó (MP4, MOV, M4V)",
+            "\(pictureTitle(number)): an image, or a video that loops silently (MP4, MOV, M4V)")
+    }
+
+    func confirmEmpty(_ name: String) -> String {
+        pick("Kattints újra a kiürítéshez: \(name) (3 mp)", "Click again to empty \(name) (3 s)")
     }
 
     func editNotice(_ notice: EditNotice) -> String {
@@ -294,6 +306,12 @@ struct Strings {
     var play: String { pick("Lejátszás", "Play") }
     var restart: String { pick("Elejére", "Restart") }
     var sound: String { pick("Hang", "Sound") }
+    var logosAndSlots: String { pick("Logók és slotok", "Logos and slots") }
+    var defaultTag: String { pick("ALAP", "DEFAULT") }
+    var concertTag: String { pick("KONCERT", "CONCERT") }
+    var loopTag: String { pick("LOOP", "LOOP") }
+    var emptySlot: String { pick("üres", "empty") }
+    var addPicture: String { pick("+ Hozzáadás", "+ Add") }
 
     // --- Status line ---
     var allGood: String { pick("Minden rendben", "All good") }

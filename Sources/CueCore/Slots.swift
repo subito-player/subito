@@ -150,7 +150,42 @@ public struct Picture: Equatable, Sendable {
     }
 }
 
+// Where the picture inspector saves the next change.
+public enum PictureScope: Equatable, Sendable {
+    case thisConcert, everyConcert
+}
+
+// One picture inspector change; a new name or file keeps the other field of the picture shown now.
+public enum PictureChange: Equatable, Sendable {
+    case name(String)
+    case file(String)
+    case empty
+}
+
+public enum PictureWrite: Equatable, Sendable {
+    case concert(SlotOverride)
+    case defaultSet(SlotOverride)
+}
+
 public enum Pictures {
+    // nil when there is nothing to write: a name for a logo, or for a picture with no file.
+    public static func write(_ change: PictureChange, to number: Int, shown: Picture?, scope: PictureScope)
+        -> PictureWrite?
+    {
+        let isSlot = number > logoCount
+        let override: SlotOverride
+        switch change {
+        case .empty:
+            override = .empty
+        case .name(let name):
+            guard isSlot, let shown else { return nil }
+            override = .own(SlotEntry(name: name, file: shown.file.url.path))
+        case .file(let file):
+            override = .own(SlotEntry(name: isSlot ? shown?.name ?? "" : "", file: file))
+        }
+        return scope == .thisConcert ? .concert(override) : .defaultSet(override)
+    }
+
     // Always `pictureCount` entries, nil where nothing shows; concert paths resolve against the concert file.
     public static func merge(defaults: SlotSet, concert: Concert?, concertURL: URL?) -> [Picture?] {
         func picture(_ name: String, _ logo: Logo?, _ source: PictureSource) -> Picture? {

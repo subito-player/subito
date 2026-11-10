@@ -52,8 +52,8 @@ also generate movie files.
 - Concert refers to movies by file, so fixing a movie fixes every concert using it.
 - Logo entries are an image path or `{ "loop": "file.mp4" }`: a muted video that loops seamlessly and restarts from
   frame 0 each time it is shown. `null` or left out = the default set's logo, `""` = no logo in this concert
-  (`slots.md`). A logo cue is 1 or 2: one with no file, or any other number, shows black and preflight warns. The
-  concert inspector picks logo 1 and 2 (image or video).
+  (`slots.md`). A logo cue is 1 or 2: one with no file, or any other number, shows black and preflight warns. Logo 1
+  and 2 are picked like slots, in the picture inspector (editor below).
 - "Open folder" builds a movie from `NN_name.mp4` (also `.mov`, `.m4v`) files and saves `<folder>.movie.json` next to
   them. MKV, WebM, AVI and other ffmpeg formats are listed too (red in preflight, ready to convert) unless an MP4 or
   MOV with the same name is already there.
@@ -117,6 +117,11 @@ break, logo, movie (to concert: + Movie, or drag in a `.movie.json` or clip fold
 twice); rename; brief, planned end, tail, break minutes and countdown fields. Dragging Finder files onto the list
 starts editing (rehearsal, or unlocked concert); an empty show says what to do. Autosave, atomic write. Later: undo,
 templates, duplicate.
+Picture inspector (edit mode, click a logo or slot; it replaces the row selection): Name (slots only), File
+(Choose...: an image, or an MP4, MOV or M4V that loops), its key (read-only), "Saved for" = where the next change goes:
+This concert only (where it starts, on every selection, with a concert open) or Every concert (the default set; the
+only choice with a single movie open), Back to default (the concert's own picture), Empty (press twice). A new name or
+file keeps the other field of the picture shown.
 While an editor text field is being edited, keys go to the field (banner says so); Enter or Esc ends typing, and
 from then on keys drive the show again.
 
@@ -124,8 +129,11 @@ from then on keys drive the show again.
 status dots, last key, HU/EN, `?` for the key list); left 30% two-level list (movie headers, items, LIVE red, ARMED
 amber); right LIVE and NEXT previews side by side, the clip's brief (2 lines) under each title (NEXT has its own small scrub bar for
 parking), progress bar with white planned-end and amber tail-end markers, big "to planned end" time,
-smaller "to clip end"; button row with every key action and its key; status line at bottom (plain language, no codec
-names). Window fills the laptop screen so there is nothing else to click. If the app loses focus: big red "keys not
+smaller "to clip end"; button area: a big GO on the left spanning two rows, row 1 Play, Restart, -30, -5, +5, +30,
+BLACK, Sound, row 2 "Logos and slots": Logo 1, Logo 2, slots 1 to 6, each with a thumbnail ("LOOP" for a video), its
+name, key and a DEFAULT or CONCERT tag, dashed "empty" when unset, a red dot when its file can't load, the amber ring
+while it is the cover; a click does what its key does (in edit mode it selects); status line at bottom (plain
+language, no codec names). Window fills the laptop screen so there is nothing else to click. If the app loses focus: big red "keys not
 reaching the app, click here" banner.
 
 **Advanced view (Ctrl+Opt+D, for the owner):** log tail, key-to-switch timings, projector modes, memory use (now and
