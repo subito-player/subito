@@ -1,4 +1,4 @@
-# Attacca v0.1 plan
+# Subito v0.1 plan
 
 Spec: `docs/design.md`. Swift tools 6.0, macOS 14 min, no deps. `CueCore` Swift 6 mode, `CueApp` Swift 5 mode (AVFoundation/AppKit Sendable noise, speed).
 

@@ -1,4 +1,4 @@
-# Attacca
+# Subito
 
 [![Build Status](https://app.bitrise.io/app/ac688969-4ec3-4e8f-9769-5f2a9ae909bc/status.svg?token=ArHnvXQT4N79GP5lrqjzXw&branch=main)](https://app.bitrise.io/app/ac688969-4ec3-4e8f-9769-5f2a9ae909bc)
 
@@ -7,6 +7,9 @@ projector shows only video, black, a logo or the break screen. Keyboard first, b
 
 Status: v0.3.0 (logos and slots), first rehearsal 2026-11-13. macOS 14+, Apple Silicon only.
 
+Renamed from Attacca on 2026-11-10: releases up to v0.3.0 carry the old name. The first launch under the new name
+copies the old settings (key map, default set, language, output display).
+
 ## Build
 
 ```sh
@@ -14,21 +17,21 @@ make test     # CueCore tests with coverage gate
 make run      # build and launch the app
 make app      # ad-hoc signed Apple Silicon .app in build/
 make zip      # zipped .app for sharing
-make dmg      # disk image: open it, drag Attacca to Applications
+make dmg      # disk image: open it, drag Subito to Applications
 make samples  # test clips, logos, a movie and a concert in build/samples (needs ffmpeg or nix)
 ```
 
 ## Run
 
 ```sh
-build/Attacca.app/Contents/MacOS/Attacca build/samples/samples.concert.json   # a concert, movie or clip folder
-build/Attacca.app/Contents/MacOS/Attacca                                     # reopens the last show
+build/Subito.app/Contents/MacOS/Subito build/samples/samples.concert.json   # a concert, movie or clip folder
+build/Subito.app/Contents/MacOS/Subito                                     # reopens the last show
 ```
 
 Check a show and this Mac's default set without the UI (no windows, writes nothing; JSON report on stdout):
 
 ```sh
-build/Attacca.app/Contents/MacOS/Attacca --check ~/Movies/Gala/gala.concert.json   # or a .movie.json or a clip folder
+build/Subito.app/Contents/MacOS/Subito --check ~/Movies/Gala/gala.concert.json   # or a .movie.json or a clip folder
 make check SHOW=~/Movies/Gala/gala.concert.json                                   # same, needs `make app` first
 ```
 
@@ -37,11 +40,11 @@ Exit codes: 0 ok, 1 warnings (still plays), 2 a clip can't play, 3 the show itse
 The output goes to the external display picked on the control screen (else the first external one) and never to the
 laptop panel. Files (folder names follow `app.env`):
 
-- Log: `~/Library/Logs/Attacca/YYYY-MM-DD.log`
-- State (crash recovery, last show, mode): `~/Library/Application Support/me.blint.attacca/state.json`
-- Key map (edit, then relaunch): `~/Library/Application Support/me.blint.attacca/keymap.json`
-- Default set (Logo 1, Logo 2, slots 1 to 6): `~/Library/Application Support/me.blint.attacca/slots.json`
-- Cheat sheet (Advanced view, Ctrl+Opt+D): `~/Library/Application Support/me.blint.attacca/cheatsheet.html`
+- Log: `~/Library/Logs/Subito/YYYY-MM-DD.log`
+- State (crash recovery, last show, mode): `~/Library/Application Support/me.blint.subito/state.json`
+- Key map (edit, then relaunch): `~/Library/Application Support/me.blint.subito/keymap.json`
+- Default set (Logo 1, Logo 2, slots 1 to 6): `~/Library/Application Support/me.blint.subito/slots.json`
+- Cheat sheet (Advanced view, Ctrl+Opt+D): `~/Library/Application Support/me.blint.subito/cheatsheet.html`
 
 ## Clip formats
 
@@ -65,7 +68,7 @@ nix shell nixpkgs#ffmpeg --command ffmpeg -i logo.gif -pix_fmt yuv420p -vf "scal
 
 ## First open
 
-From a release: download the `.dmg`, open it and drag Attacca onto Applications (or unzip the `.zip`). A downloaded
+From a release: download the `.dmg`, open it and drag Subito onto Applications (or unzip the `.zip`). A downloaded
 (quarantined) build opens via System Settings > Privacy & Security > Open Anyway, or
 `xattr -dr com.apple.quarantine <app>`.
 

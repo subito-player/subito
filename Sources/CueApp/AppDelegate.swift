@@ -26,6 +26,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var keyMonitor: Any?
     private var activity: NSObjectProtocol?
 
+    // Settings live under the bundle ID, so the first launch after a rename starts from the old name's copy.
+    private func copySettingsFromPreviousName() {
+        let info = Bundle.main.infoDictionary
+        guard let old = info?["PreviousBundleIdentifier"] as? String, !old.isEmpty, old != Bundle.main.bundleIdentifier
+        else { return }
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        do {
+            let source = base.appendingPathComponent(old, isDirectory: true)
+            if try Rename.copySupportFolder(from: source, to: AppInfo.supportDirectory) {
+                Log.info("settings copied from \(source.path)")
+            }
+        } catch {
+            Log.info("error: cannot copy settings from \(old): \(error.localizedDescription)")
+        }
+        guard let previous = UserDefaults(suiteName: old) else { return }
+        for key in [Lang.savedKey, DisplayWatcher.savedKey] where UserDefaults.standard.object(forKey: key) == nil {
+            if let value = previous.object(forKey: key) { UserDefaults.standard.set(value, forKey: key) }
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         if handOverToRunningInstance() { return }
         Log.pruneOldFiles()
@@ -35,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             reason: "Projector output must stay on during a show"
         )
         installMainMenu()
+        copySettingsFromPreviousName()
         let argument = LaunchArguments.showPath(Array(CommandLine.arguments.dropFirst()))
         // Read before the model writes cleanExit = false over it.
         let saved = StateFile.load()

@@ -6,10 +6,10 @@ time. Note every surprise in the log at the bottom; it drives v0.2.
 ## Before the orchestra arrives (owner, ~20 min)
 
 1. `make samples app`, copy the show folder to the Mac, run through `docs/operator-checklist.md`.
-2. Start with the sample concert: `build/Attacca.app/Contents/MacOS/Attacca build/samples/samples.concert.json`.
+2. Start with the sample concert: `build/Subito.app/Contents/MacOS/Subito build/samples/samples.concert.json`.
 3. On the real projector, with the frame counter of the sample clips visible:
    1. GO through every cue. Expect no black frame and no flash between clips (frame counter jumps straight to the
-      next clip). `grep switch ~/Library/Logs/Attacca/*.log` shows key-to-switch times.
+      next clip). `grep switch ~/Library/Logs/Subito/*.log` shows key-to-switch times.
    2. B, B during a clip: instant cuts. L, L: the logo fades in and out (0.5 s). Shift+L while logo 1 is up: instant
       swap. GO while a logo is up: instant cut, no logo dissolving over the new clip. Mash L: always ends fully logo or
       fully picture. The clip keeps running underneath throughout.
@@ -22,7 +22,7 @@ time. Note every surprise in the log at the bottom; it drives v0.2.
    5. Move the cursor towards the projector: it stops at the laptop edge.
    6. Unplug HDMI during a clip: nothing on the laptop panel, red NO PROJECTOR. Replug: picture returns in the same
       state. Write down the projector's refresh rates from the top bar.
-   7. `grep "NOT ready" ~/Library/Logs/Attacca/*.log` is empty.
+   7. `grep "NOT ready" ~/Library/Logs/Subito/*.log` is empty.
    8. Slots (USB numpad): Szerkesztés, click Slot 1, Választás... an image (tag KONCERT); click Slot 2, Minden koncert
       (alap), a looping video (tag ALAP). Leave edit mode. Numpad 1 and a click on Slot 1 fade it in and out while the
       clip keeps running underneath; numpad 2 while slot 1 is up cuts straight across. Numpad 5 (empty): nothing
