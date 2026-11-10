@@ -10,7 +10,7 @@
 Silent video player for live orchestras. One Mac, two screens: the laptop is the operator's control screen, the
 projector shows only video, black, a logo or the break screen. Keyboard first, boring and predictable.
 
-Status: v0.3.0 (logos and slots), first rehearsal 2026-11-13. macOS 14+, Apple Silicon only.
+Status: v0.3.1, first rehearsal 2026-11-13. macOS 14+, Apple Silicon only.
 
 Renamed from Attacca on 2026-11-10: releases up to v0.3.0 carry the old name. The first launch under the new name
 copies the old settings (key map, default set, language, output display).
