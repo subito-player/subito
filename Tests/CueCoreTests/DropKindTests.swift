@@ -1,4 +1,5 @@
 import CueCore
+import Foundation
 import Testing
 
 struct DropKindTests {
@@ -14,5 +15,13 @@ struct DropKindTests {
     @Test func anythingElseIsIgnored() {
         #expect(DropKind.classify([]) == .none)
         #expect(DropKind.classify([["public.png"]]) == .none)
+    }
+
+    @Test func aDroppedMovieFileOrClipFolderBecomesAMovieNotNothing() {
+        let movie = URL(fileURLWithPath: "/m/The Greatest Showman.movie.json")
+        #expect(DroppedFile.classify(movie, isFolder: false, isVideo: false) == .movie)
+        #expect(DroppedFile.classify(URL(fileURLWithPath: "/m/Showman"), isFolder: true, isVideo: false) == .movie)
+        #expect(DroppedFile.classify(URL(fileURLWithPath: "/m/01_a.mp4"), isFolder: false, isVideo: true) == .clip)
+        #expect(DroppedFile.classify(URL(fileURLWithPath: "/m/logo.png"), isFolder: false, isVideo: false) == .none)
     }
 }

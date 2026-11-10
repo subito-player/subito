@@ -28,6 +28,16 @@ struct Strings {
     var rehearsal: String { pick("Próba", "Rehearsal") }
     var concert: String { pick("Koncert", "Concert") }
     var noShow: String { pick("Nincs betöltött műsor", "No show loaded") }
+    var emptyConcert: String {
+        pick(
+            "Üres koncert. Húzz ide egy filmet (.movie.json vagy klipmappa), vagy Szerkesztés, majd + Film.",
+            "Empty concert. Drag a movie here (.movie.json or a clip folder), or Edit, then + Movie.")
+    }
+    var emptyMovie: String {
+        pick(
+            "Üres film. Húzz ide klipeket, vagy Szerkesztés, majd + Klip.",
+            "Empty movie. Drag clips here, or Edit, then + Clip.")
+    }
     var noProjector: String { pick("NINCS PROJEKTOR", "NO PROJECTOR") }
     var mirroring: String {
         pick("Tükrözés: a projektor a laptop képét mutatja", "Mirroring: the projector shows the laptop screen")
