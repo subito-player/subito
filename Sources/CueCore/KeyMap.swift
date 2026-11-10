@@ -208,12 +208,14 @@ public struct KeyMap: Sendable {
         bindings.filter { $0.value == action }.map(\.key).sorted { $0.order < $1.order }
     }
 
-    // A stray Shift or Option still hits the plain binding; Command and Control never fall through.
+    // Stray Shift/Option falls to the plain binding, never an arm-by-number one (Opt+Shift+4 is a screenshot).
     public func action(for chord: KeyChord) -> KeyAction? {
         let strip: [Set<Modifier>] = [[], [.shift], [.option], [.shift, .option]]
         for extra in strip {
             let candidate = KeyChord(key: chord.key, modifiers: chord.modifiers.subtracting(extra))
-            if let action = bindings[candidate] { return action }
+            guard let action = bindings[candidate] else { continue }
+            if case .command(.armNumber) = action, !extra.isEmpty { continue }
+            return action
         }
         return nil
     }

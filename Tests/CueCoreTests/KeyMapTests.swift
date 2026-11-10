@@ -78,11 +78,28 @@ import Testing
     @Test func strayShiftOrOptionFallsBackButCommandAndControlDoNot() throws {
         #expect(try action("Opt+Enter") == .command(.go))
         #expect(try action("Shift+B") == .command(.toggleCover(.black)))
+        #expect(try action("Opt+L") == .command(.toggleCover(.logo(1))))
         #expect(try action("Opt+Shift+Space") == .command(.playPause))
         #expect(try action("Shift+L") == .command(.toggleCover(.logo(2))))
         #expect(try action("Opt+Shift+Left") == .command(.parkArmed(by: -30)))
         #expect(try action("Cmd+B") == nil)
         #expect(try action("Ctrl+Shift+B") == nil)
+    }
+
+    // KeyInput gives keypad digits the same unmodified chord as the top row, so "4" covers both.
+    @Test(arguments: ["Opt+Shift+4", "Opt+4", "Shift+4", "Opt+Shift+0"])
+    func strayShiftOrOptionNeverArmsADigit(text: String) throws {
+        #expect(try action(text) == nil)
+        #expect(try action("4") == .command(.armNumber(4)))
+    }
+
+    @Test func aDigitChordBoundInTheFileStillMatchesExactly() throws {
+        let json = #"{ "format": 1, "keys": { "Enter": "go", "4": "arm:4", "Opt+4": "black", "Shift+5": "arm:5" } }"#
+        let map = try KeyMap(json: Data(json.utf8))
+        #expect(map.action(for: try #require(KeyChord("Opt+4"))) == .command(.toggleCover(.black)))
+        #expect(map.action(for: try #require(KeyChord("Shift+5"))) == .command(.armNumber(5)))
+        #expect(map.action(for: try #require(KeyChord("Opt+Shift+4"))) == .command(.toggleCover(.black)))
+        #expect(map.action(for: try #require(KeyChord("Opt+Shift+5"))) == nil)
     }
 
     @Test(arguments: [
