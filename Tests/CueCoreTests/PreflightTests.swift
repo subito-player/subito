@@ -198,14 +198,22 @@ private func picture(_ file: LogoFile, _ name: String = "") -> Picture {
                 == [])
     }
 
-    // What a cover press may turn on: empty, undecoded and unplayable pictures are out, a loop still probing is in.
+    // The app gives a missing loop file its empty probe at once; a loop whose player failed is out despite its probe.
     @Test func onlyPicturesThatLoadedAreShowable() {
         let pictures: [Picture?] = [
             picture(image("a.png")), nil, picture(image("gone.png")), picture(loop("ok.mp4")), picture(loop("bad.mkv")),
-            picture(loop("probing.mp4")),
+            picture(loop("probing.mp4")), picture(loop("missing.mp4")), picture(loop("dead.mp4")),
         ]
-        let probes = [loop("ok.mp4").url: ownExport, loop("bad.mkv").url: probe { $0.playable = false }]
-        #expect(Preflight.showable(pictures, images: [image("a.png").url], probes: probes) == [1, 4, 6])
+        let probes = [
+            loop("ok.mp4").url: ownExport, loop("bad.mkv").url: probe { $0.playable = false },
+            loop("missing.mp4").url: ClipProbe(), loop("dead.mp4").url: ownExport,
+        ]
+        let failed: Set = [loop("dead.mp4").url]
+        let images: Set = [image("a.png").url]
+        #expect(Preflight.showable(pictures, images: images, probes: probes, failedLoops: failed) == [1, 4, 6])
+        #expect(
+            Preflight.evaluate(pictures: pictures, images: images, probes: probes, failedLoops: failed).map(\.detail)
+                == ["Slot 1 · gone.png", "Slot 3 · bad.mkv", "Slot 5 · missing.mp4", "Slot 6 · dead.mp4"])
     }
 }
 

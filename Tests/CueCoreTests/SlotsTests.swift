@@ -123,12 +123,30 @@ private func merge(_ concert: Concert?) -> [Picture?] {
 
             var changed = SlotSet()
             changed.setPicture(3, .own(SlotEntry(name: "Sponsor", file: "/set/sponsor.png")))
-            try changed.save(to: url, overBroken: true)
-            #expect(try String(contentsOf: SlotSet.brokenURL(for: url), encoding: .utf8) == broken)
-            #expect(SlotSet.brokenURL(for: url).lastPathComponent == "slots.broken.json")
+            let aside = try changed.save(to: url, overBroken: true)
+            #expect(try aside.map { try String(contentsOf: $0, encoding: .utf8) } == broken)
+            #expect(aside?.lastPathComponent.wholeMatch(of: /slots\.broken-\d{8}-\d{6}\.json/) != nil)
             let (reloaded, reloadError) = SlotSet.load(from: url)
             #expect(reloaded == changed)
             #expect(reloadError == nil)
+        }
+    }
+
+    // A second broken file is set aside next to the first, never over it.
+    @Test func everyBrokenFileIsKept() throws {
+        try withTempDir { dir in
+            let url = dir.appendingPathComponent(SlotSet.fileName)
+            let first = Date(timeIntervalSince1970: 1_700_000_000)
+            try write("first", to: url)
+            #expect(try SlotSet().save(to: url, overBroken: true, now: first) == SlotSet.brokenURL(for: url, at: first))
+            try write("second", to: url)
+            let second = first.addingTimeInterval(60)
+            #expect(
+                try SlotSet().save(to: url, overBroken: true, now: second) == SlotSet.brokenURL(for: url, at: second))
+            #expect(try String(contentsOf: SlotSet.brokenURL(for: url, at: first), encoding: .utf8) == "first")
+            #expect(try String(contentsOf: SlotSet.brokenURL(for: url, at: second), encoding: .utf8) == "second")
+            #expect(try SlotSet().save(to: url, overBroken: false) == nil)
+            #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path).count == 3)
         }
     }
 

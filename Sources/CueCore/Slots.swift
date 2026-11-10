@@ -91,22 +91,30 @@ public struct SlotSet: Codable, Equatable, Sendable {
         }
     }
 
-    // Where `save(to:overBroken:)` keeps the owner's broken file.
-    public static func brokenURL(for url: URL) -> URL {
-        url.deletingLastPathComponent().appendingPathComponent(
-            url.deletingPathExtension().lastPathComponent + ".broken.json")
+    // Timestamped, so a later move-aside never replaces an earlier broken file.
+    public static func brokenURL(for url: URL, at date: Date) -> URL {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let name = url.deletingPathExtension().lastPathComponent
+        return url.deletingLastPathComponent().appendingPathComponent(
+            "\(name).broken-\(formatter.string(from: date)).json")
     }
 
-    // Atomic; overBroken moves the broken file there aside first, so a save never loses the owner's text.
-    public func save(to url: URL, overBroken: Bool) throws {
+    // Atomic; overBroken first moves the broken file aside (returned), so a save never loses the owner's text.
+    @discardableResult
+    public func save(to url: URL, overBroken: Bool, now: Date = Date()) throws -> URL? {
         let files = FileManager.default
         try files.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        var aside: URL?
         if overBroken, files.fileExists(atPath: url.path) {
-            let aside = Self.brokenURL(for: url)
-            if files.fileExists(atPath: aside.path) { try files.removeItem(at: aside) }
-            try files.moveItem(at: url, to: aside)
+            let target = Self.brokenURL(for: url, at: now)
+            // moveItem refuses an existing target, so nothing already set aside is ever replaced.
+            try files.moveItem(at: url, to: target)
+            aside = target
         }
         try ShowLoader.write(self, to: url)
+        return aside
     }
 
     // The default set has nothing under it, so .useDefault and .empty both clear the picture.

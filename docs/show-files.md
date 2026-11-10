@@ -92,8 +92,9 @@ Other item types:
 
 `~/Library/Application Support/<bundle id>/slots.json`, one per Mac: the Logo 1, Logo 2 and slots 1 to 6 every
 concert starts from, and what a single movie shows. Absolute paths. `null` or left out = empty. The app writes it
-when a picture is changed for every concert. A broken file is reported in red and counts as empty; the app never
-writes over it: the first change from the app moves it aside to `slots.broken.json`.
+when a picture is changed for every concert, reading the file again first, so a hand edit made while the app runs is
+kept. A broken file is reported in red and counts as empty; the app never writes over it: the first change from the
+app moves it aside to `slots.broken-YYYYMMDD-HHMMSS.json` (earlier ones are never replaced).
 
 ```json
 {

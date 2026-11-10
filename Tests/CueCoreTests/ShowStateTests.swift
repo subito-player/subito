@@ -576,6 +576,16 @@ extension ShowState {
         #expect(state.pending == .confirmUnmute)
     }
 
+    // M, a stray press on an empty slot, M: sound stays off, as with any other key in between.
+    @Test func aRefusedPressCancelsThePendingConfirmationToo() {
+        var state = ShowState.clip1LiveOnA()
+        state.send(.toggleMute)
+        state.cancelPending()
+        #expect(state.pending == nil)
+        #expect(state.send(.toggleMute) == [.notice(.confirmUnmute)])
+        #expect(state.muted)
+    }
+
     @Test func engineEventsDoNotCancelThePendingConfirmation() {
         var state = ShowState.clip1LiveOnA()
         state.send(.toggleMute)

@@ -152,8 +152,10 @@ public enum Preflight {
     }
 
     // Only a warning: its cover press is refused and a logo cue shows black; `images` holds the decoded images.
-    public static func evaluate(pictures: [Picture?], images: Set<URL>, probes: [URL: ClipProbe]) -> [Finding] {
-        let showable = showable(pictures, images: images, probes: probes)
+    public static func evaluate(
+        pictures: [Picture?], images: Set<URL>, probes: [URL: ClipProbe], failedLoops: Set<URL> = []
+    ) -> [Finding] {
+        let showable = showable(pictures, images: images, probes: probes, failedLoops: failedLoops)
         return pictures.enumerated().compactMap { index, picture in
             let number = index + 1
             guard let picture, !showable.contains(number) else { return nil }
@@ -166,21 +168,27 @@ public enum Preflight {
         }
     }
 
-    // Picture numbers whose file is there and loaded, 1-based.
-    public static func showable(_ pictures: [Picture?], images: Set<URL>, probes: [URL: ClipProbe]) -> Set<Int> {
+    // Picture numbers, 1-based, whose image decoded or whose loop neither failed its probe nor its player.
+    public static func showable(
+        _ pictures: [Picture?], images: Set<URL>, probes: [URL: ClipProbe], failedLoops: Set<URL> = []
+    ) -> Set<Int> {
         Set(
             pictures.enumerated().compactMap { index, picture in
-                guard let picture, shows(picture.file, images: images, probes: probes) else { return nil }
+                guard let picture, shows(picture.file, images: images, probes: probes, failedLoops: failedLoops)
+                else { return nil }
                 return index + 1
             })
     }
 
     // A loop is judged like a clip; one not probed yet waits, as a clip does.
-    private static func shows(_ logo: LogoFile, images: Set<URL>, probes: [URL: ClipProbe]) -> Bool {
+    private static func shows(
+        _ logo: LogoFile, images: Set<URL>, probes: [URL: ClipProbe], failedLoops: Set<URL>
+    ) -> Bool {
         switch logo {
         case .image(let url):
             return images.contains(url)
         case .loop(let url):
+            guard !failedLoops.contains(url) else { return false }
             guard let probe = probes[url] else { return true }
             return !evaluate(clip: Clip(file: url.lastPathComponent), probe: probe).contains { $0.severity == .block }
         }

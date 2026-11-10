@@ -110,7 +110,7 @@ final class AppModel {
     private(set) var defaultSlots: SlotSet
     // Always `pictureCount` entries: the default set with the open concert's changes; nil is empty.
     private(set) var pictures: [CueCore.Picture?] = Array(repeating: nil, count: pictureCount)
-    // Picture numbers whose file loaded, so a cover press on them is never refused.
+    // Pictures a cover press may turn on: a decoded image, or a loop whose file exists and plays (or is being probed).
     private(set) var showablePictures: Set<Int> = []
 
     var lang: Lang {
@@ -182,7 +182,6 @@ final class AppModel {
     @ObservationIgnored private var launchPath: String?
     @ObservationIgnored private var recoveries: Int
     @ObservationIgnored private var refreshRates: [CGDirectDisplayID: [Double]] = [:]
-    @ObservationIgnored private var slotsFileBroken: Bool
 
     // recoveries: the consecutive recovered-launch count this launch writes until the first GO.
     init(plan: LaunchPlan, recoveries: Int, mode: Mode) {
@@ -196,7 +195,6 @@ final class AppModel {
         self.keyMap = keyMap
         slotsWithoutKeys = keyMap.slotsWithoutKeys
         self.defaultSlots = defaultSlots
-        slotsFileBroken = slotsError != nil
         self.problems = problems
         self.recoveries = recoveries
         engine = PlaybackEngine(defaultBreakTitle: Strings(lang: lang).breakTitle)
@@ -212,6 +210,7 @@ final class AppModel {
         engine.onLoadError = { [weak self] _, url, failure in
             self?.loadFailed(LoadError(url: url, failure: failure))
         }
+        engine.onLoopFailed = { [weak self] _ in self?.loopFailed() }
         watcher = DisplayWatcher(window: engine.window) { [weak self] status in self?.outputChanged(status) }
         // Only a fullscreen output owns its display; a windowed or hidden one leaves it to the cursor.
         cursorGuard = CursorGuard { [weak self] in
@@ -337,6 +336,9 @@ final class AppModel {
         if ShowState.refusesCover(command, cover: state.cover, showable: showablePictures),
             case .toggleCover(.logo(let number)) = command
         {
+            // Still a press, so it cancels a pending confirmation as any other key does.
+            state.cancelPending()
+            update(\.pending, nil)
             let picture = pictures.indices.contains(number - 1) ? pictures[number - 1] : nil
             let file = picture?.file.url.lastPathComponent
             return show(file.map { Notice.pictureCannotLoad(number, file: $0) } ?? .pictureEmpty(number))
@@ -363,7 +365,8 @@ final class AppModel {
             converter.sweep(
                 document.cues.compactMap { cue in if case .clip(_, let url) = cue.kind { url } else { nil } })
             self.document = document
-            problems.removeAll { if case .save = $0 { true } else { false } }
+            // slots.json belongs to no show, so its failed save outlives an Open.
+            problems.removeAll { if case .save(let file, _) = $0 { file != SlotSet.fileName } else { false } }
             recoveryNotice = nil
             loadErrors.removeAll()
             selection = nil
@@ -548,20 +551,19 @@ final class AppModel {
     }
 
     // The in-memory set keeps the change either way; the status line says the file is behind.
-    private func saveDefaultSlots() {
+    private func saveDefaultSlots(_ set: SlotSet, overBroken: Bool) -> Bool {
         let file = Self.slotsFile
         let name = file.lastPathComponent
         problems.removeAll { if case .save(name, _) = $0 { true } else { false } }
         do {
-            try defaultSlots.save(to: file, overBroken: slotsFileBroken)
-            if slotsFileBroken {
-                Log.info("default set: the broken file was moved to \(SlotSet.brokenURL(for: file).path)")
-                slotsFileBroken = false
-                problems.removeAll { if case .defaultSet = $0 { true } else { false } }
+            if let aside = try set.save(to: file, overBroken: overBroken) {
+                Log.info("default set: the broken file was moved to \(aside.path)")
             }
+            return true
         } catch {
             Log.info("error: cannot save \(file.path): \(error.localizedDescription)")
             problems.append(.save(file: name, reason: error.localizedDescription))
+            return false
         }
     }
 
@@ -765,16 +767,19 @@ final class AppModel {
         edit(.setPicture(number, url.map { .own(SlotEntry(name: "", file: $0.path)) } ?? .useDefault))
     }
 
-    // Edit mode only, like any change; .useDefault and .empty both clear the picture in the default set.
+    // Edit mode only; .useDefault and .empty both clear it. Applied to the file as it is now, so hand edits stay.
     func setDefaultPicture(_ number: Int, _ change: SlotOverride) {
         guard canEdit, (1...pictureCount).contains(number) else { return }
         commitDrafts()
-        var set = defaultSlots
+        let (fresh, error) = Self.loadDefaultSlots()
+        var set = fresh
         set.setPicture(number, change)
-        guard set != defaultSlots else { return }
         Log.info("default set: picture \(number) -> \(change)")
+        // A change that changes nothing writes nothing, so a broken file stays as the owner left it.
+        let saved = set != fresh && saveDefaultSlots(set, overBroken: error != nil)
+        problems.removeAll { if case .defaultSet = $0 { true } else { false } }
+        if let error, !saved { problems.append(.defaultSet(error)) }
         defaultSlots = set
-        saveDefaultSlots()
         refreshPictures()
         if case .own = change { forgetProbe(of: number) }
         checkShow()
@@ -1050,6 +1055,10 @@ final class AppModel {
         let loops = pictures.compactMap { picture -> URL? in
             if case .loop(let url)? = picture?.file { url } else { nil }
         }
+        // What the probe says of a missing file, known at once, so its cover is refused while clips are probed.
+        for url in loops where probes[url] == nil && !FileManager.default.fileExists(atPath: url.path) {
+            probes[url] = ClipProbe()
+        }
         let urls = Set(
             state.cues.compactMap { cue -> URL? in if case .clip(_, let url) = cue.kind { url } else { nil } } + loops)
         let missing = urls.subtracting(probes.keys)
@@ -1087,8 +1096,21 @@ final class AppModel {
             guard let index = finding.cueIndex, case .clip(_, let url) = cues[index].kind else { return true }
             return !pending.contains(url)
         }
-        showFindings = findings + Preflight.evaluate(pictures: pictures, images: images, probes: probes)
-        update(\.showablePictures, Preflight.showable(pictures, images: images, probes: probes))
+        showFindings =
+            findings
+            + Preflight.evaluate(pictures: pictures, images: images, probes: probes, failedLoops: engine.failedLoops)
+        refreshShowable()
+    }
+
+    private func refreshShowable() {
+        let showable = Preflight.showable(
+            pictures, images: Set(engine.images.keys), probes: probes, failedLoops: engine.failedLoops)
+        update(\.showablePictures, showable)
+    }
+
+    // Preflight names it once the running check is done; the cover is refused at once.
+    private func loopFailed() {
+        if checking { refreshShowable() } else { evaluateShow(pending: []) }
     }
 
     // Every show or default-set change lands here, so engine, preflight and covers agree; retry: Open re-decodes.
@@ -1098,6 +1120,7 @@ final class AppModel {
         let changed = files != pictures.map { $0?.file }
         if merged != pictures { pictures = merged }
         if changed || retry { engine.setLogos(files) }
+        if retry { engine.rebuildFailedLoops() }
     }
 
     // A picked file is probed again, so a re-exported loop is not judged by its old probe.
@@ -1105,10 +1128,12 @@ final class AppModel {
         guard let url = pictures[number - 1]?.file.url else { return }
         probes[url] = nil
         durations[url] = nil
+        engine.rebuildFailedLoops()
     }
 
     private func probed(_ url: URL, _ probe: ClipProbe) {
         probes[url] = probe
+        if pictures.contains(where: { $0?.file == .loop(url) }) { refreshShowable() }
         noteDuration(url, probe.duration)
         Log.deferred(
             "probe \(url.lastPathComponent): exists \(probe.exists), playable \(probe.playable), "

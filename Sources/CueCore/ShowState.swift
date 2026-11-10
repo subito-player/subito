@@ -113,6 +113,12 @@ public struct ShowState: Equatable, Sendable {
         self.cues = cues
     }
 
+    // A press the app refuses before `handle` is still a press, so it cancels a pending confirmation the same way.
+    public mutating func cancelPending() {
+        pending = nil
+        pendingUntil = nil
+    }
+
     public func activePending(at now: Date) -> Notice? {
         guard let pendingUntil, now < pendingUntil else { return nil }
         return pending

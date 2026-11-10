@@ -1,7 +1,7 @@
 import CueCore
 import Foundation
 
-// Headless `--check`: preflight of the show only, no windows or displays, no files written.
+// Headless `--check`: preflight of the show and this Mac's default set, no windows or displays, no files written.
 enum Check {
     static func run(path: String) async -> Int32 {
         Log.headless = true
