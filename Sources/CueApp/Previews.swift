@@ -14,9 +14,17 @@ struct Previews: View {
         let s = model.strings
         let state = model.state
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: Self.gap) {
-                liveLabel(s, state).frame(maxWidth: .infinity, alignment: .leading)
-                nextLabel(s, state).frame(maxWidth: .infinity, alignment: .leading)
+            HStack(alignment: .top, spacing: Self.gap) {
+                VStack(alignment: .leading, spacing: 4) {
+                    liveLabel(s, state)
+                    briefText(liveBrief(state))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 4) {
+                    nextLabel(s, state)
+                    briefText(state.armedIndex.flatMap { brief(state.cues[$0]) })
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack(spacing: Self.gap) {
                 Screen { liveContent(state) }.frame(maxWidth: .infinity)
@@ -74,6 +82,28 @@ struct Previews: View {
             guard let url = model.engine.url(slot) else { return "" }
             return model.cue(for: url).map(s.title) ?? Clip(file: url.lastPathComponent).resolvedTitle
         }
+    }
+
+    // The same cue liveTitle names.
+    private func liveBrief(_ state: ShowState) -> String? {
+        if let index = state.liveIndex, state.cues.indices.contains(index) { return brief(state.cues[index]) }
+        guard case .clip(let slot) = state.base, let url = model.engine.url(slot) else { return nil }
+        return model.cue(for: url).flatMap(brief)
+    }
+
+    private func brief(_ cue: Cue) -> String? {
+        guard case .clip(let clip, _) = cue.kind else { return nil }
+        return clip.brief
+    }
+
+    // Never "": an empty Text drops its two reserved lines and the previews below would move.
+    private func briefText(_ brief: String?) -> some View {
+        let text = brief ?? ""
+        return Text(text.isEmpty ? " " : text)
+            .font(.system(size: 14))
+            .foregroundStyle(Palette.dim)
+            .lineLimit(2, reservesSpace: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func nextLabel(_ s: Strings, _ state: ShowState) -> some View {
