@@ -61,10 +61,11 @@ struct Previews: View {
         HStack(spacing: 8) {
             Tag(text: s.live, fill: Palette.live, ink: .white)
             Text(liveTitle(s, state)).lineLimit(1)
-            if state.cover != nil {
+            if let cover = state.cover {
                 let play = state.livePlaying ? s.running : s.paused
+                let covered = "\(s.covered) · \(s.cover(cover))"
                 Tag(
-                    text: model.liveSlot == nil ? s.covered : "\(s.covered) · \(play)", fill: Palette.raise,
+                    text: model.liveSlot == nil ? covered : "\(covered) · \(play)", fill: Palette.raise,
                     ink: Palette.fg, outlined: true)
             }
         }
@@ -138,7 +139,7 @@ struct Previews: View {
             case .clip, .black:
                 EmptyView()
             case .logo(let number):
-                LogoPreview(picture: model.engine.logo(number), engine: model.engine)
+                LogoPreview(picture: model.engine.liveLogo(number), engine: model.engine)
             case .breakScreen(let item):
                 let now = Date()
                 BreakPreview(

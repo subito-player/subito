@@ -77,9 +77,9 @@ public enum Severity: String, Sendable {
 public struct Finding: Equatable, Sendable {
     public enum Kind: String, Equatable, Sendable {
         case fileMissing, notPlayable, noVideo, size, frameRate, length, plannedEnd
-        case logo, logoNumber
-        // Only `--check` reports it; an empty show is normal while editing.
-        case emptyShow
+        case logo, slot, logoNumber
+        // Only `--check` reports these: an empty show is normal while editing, a broken default set is a problem.
+        case emptyShow, defaultSet
         case projector, mirrored, refreshRate, betterRefreshRate, power, spaces, sound
     }
 
@@ -132,7 +132,7 @@ public enum Preflight {
         return findings
     }
 
-    // A cue whose file was never probed counts as missing; a logo number with no file shows black.
+    // A cue whose file was never probed counts as missing; a logo cue shows only Logo 1 or 2, else black.
     public static func evaluate(cues: [Cue], probes: [URL: ClipProbe], logos: [LogoFile?]) -> [Finding] {
         cues.indices.flatMap { index -> [Finding] in
             switch cues[index].kind {
@@ -142,7 +142,8 @@ public enum Preflight {
                     finding.cueIndex = index
                     return finding
                 }
-            case .logo(let number) where !logos.indices.contains(number - 1) || logos[number - 1] == nil:
+            case .logo(let number)
+            where !(1...logoCount).contains(number) || !logos.indices.contains(number - 1) || logos[number - 1] == nil:
                 return [Finding(severity: .warn, cueIndex: index, kind: .logoNumber, detail: "\(number)")]
             default:
                 return []
@@ -150,12 +151,28 @@ public enum Preflight {
         }
     }
 
-    // A logo that cannot show is black, so only a warning; `images` holds the image files that decoded.
-    public static func evaluate(logos: [LogoFile?], images: Set<URL>, probes: [URL: ClipProbe]) -> [Finding] {
-        logos.enumerated().compactMap { index, logo in
-            guard let logo, !shows(logo, images: images, probes: probes) else { return nil }
-            return Finding(severity: .warn, kind: .logo, detail: "\(index + 1) · \(logo.url.lastPathComponent)")
+    // Only a warning: its cover press is refused and a logo cue shows black; `images` holds the decoded images.
+    public static func evaluate(pictures: [Picture?], images: Set<URL>, probes: [URL: ClipProbe]) -> [Finding] {
+        let showable = showable(pictures, images: images, probes: probes)
+        return pictures.enumerated().compactMap { index, picture in
+            let number = index + 1
+            guard let picture, !showable.contains(number) else { return nil }
+            let file = picture.file.url.lastPathComponent
+            guard number > logoCount else {
+                return Finding(severity: .warn, kind: .logo, detail: "\(number) · \(file)")
+            }
+            return Finding(
+                severity: .warn, kind: .slot, detail: "\(Pictures.slotName(picture, number: number)) · \(file)")
         }
+    }
+
+    // Picture numbers whose file is there and loaded, 1-based.
+    public static func showable(_ pictures: [Picture?], images: Set<URL>, probes: [URL: ClipProbe]) -> Set<Int> {
+        Set(
+            pictures.enumerated().compactMap { index, picture in
+                guard let picture, shows(picture.file, images: images, probes: probes) else { return nil }
+                return index + 1
+            })
     }
 
     // A loop is judged like a clip; one not probed yet waits, as a clip does.

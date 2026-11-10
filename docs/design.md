@@ -51,8 +51,9 @@ also generate movie files.
   rest of the filename ("the_greatest_show" -> "The Greatest Show"). No `planned_end_s` = no markers.
 - Concert refers to movies by file, so fixing a movie fixes every concert using it.
 - Logo entries are an image path or `{ "loop": "file.mp4" }`: a muted video that loops seamlessly and restarts from
-  frame 0 each time it is shown. An empty string is a number with no file: it shows black, and preflight warns when a
-  logo cue uses it. The concert inspector picks logo 1 and 2 (image or video).
+  frame 0 each time it is shown. `null` or left out = the default set's logo, `""` = no logo in this concert
+  (`slots.md`). A logo cue is 1 or 2: one with no file, or any other number, shows black and preflight warns. The
+  concert inspector picks logo 1 and 2 (image or video).
 - "Open folder" builds a movie from `NN_name.mp4` (also `.mov`, `.m4v`) files and saves `<folder>.movie.json` next to
   them. MKV, WebM, AVI and other ffmpeg formats are listed too (red in preflight, ready to convert) unless an MP4 or
   MOV with the same name is already there.
@@ -60,11 +61,13 @@ also generate movie files.
 ## Behaviour
 
 **Output = live item + optional cover.** Live item: black, logo, break, or clip (playing, paused, or ended holding its
-last frame; no loop, no stop screen). Cover: none, black, logo 1, logo 2.
-- B / L / Shift+L put a cover over the live item. The clip under it keeps its state: playing keeps running hidden (in
-  step with the music), paused stays on its frame. Space, seek and Home still act on the covered clip; LIVE preview
-  shows it with "COVERED · running" or "COVERED · paused".
+last frame; no loop, no stop screen). Cover: none, black, logo 1, logo 2, slot 1 to 6.
+- B / L / Shift+L / keypad 1 to 6 put a cover over the live item. The clip under it keeps its state: playing keeps
+  running hidden (in step with the music), paused stays on its frame. Space, seek and Home still act on the covered
+  clip; LIVE preview names the cover and the clip's state, e.g. "COVERED · Logo 1 · running".
 - Same key again removes the cover (no separate uncover key). Another cover key swaps the cover.
+- A logo or slot that is empty, or whose file did not load, never comes on: the press changes nothing on the
+  projector and the status line says why ("Slot 3 is empty"). Taking a cover off always works; B is never refused.
 - Black, then continue later from the same frame: B, Space (pause hidden), ... B (frame back), Space (play).
 - Cover is picture only: rehearsal audio of a covered running clip keeps playing.
 - GO replaces the live item and clears any cover. GO onto a black, logo or break item ends the clip (planned).
@@ -137,12 +140,13 @@ Cheat sheet: one printable A4 page in the current UI language.
 
 **Preflight** (launch and on load, results on control only): files exist; playable by AVFoundation (red if not, plain
 message); size, fps, codec, duration vs `planned_end_s + tail_s` (yellow if off by > 1 s plus one frame or not
-1920x1080 23.976, still plays); logos load; projector present and not mirrored (a projector mirroring the laptop is
-red, never an output); power adapter; current Hz and available rates; "Displays have separate Spaces" value; current
-sound output device (yellow if HDMI; app never changes it). Manual ticks: Focus/Do Not Disturb on, automatic updates
-off, black desktop wallpaper on every display, old rig ready. Status line shows the summary ("All good", "2 warnings",
-red "1 clip cannot play"); clicking it toggles the list (non-modal panel, ticks not saved). Blocked cues get a red dot
-in the cue list. System checks re-run on display, sound device and power changes.
+1920x1080 23.976, still plays); logos and slots load; logo cues are 1 or 2; projector present and not mirrored (a
+projector mirroring the laptop is red, never an output); power adapter; current Hz and available rates; "Displays
+have separate Spaces" value; current sound output device (yellow if HDMI; app never changes it). Manual ticks:
+Focus/Do Not Disturb on, automatic updates off, black desktop wallpaper on every display, old rig ready. Status line
+shows the summary ("All good", "2 warnings", red "1 clip cannot play"); clicking it toggles the list (non-modal
+panel, ticks not saved). Blocked cues get a red dot in the cue list. System checks re-run on display, sound device and
+power changes.
 
 **Projector unplugged:** hide output window at the start of any display reconfiguration (macOS reports it for every
 display, so we can't tell which one is going away), never let macOS move it to the laptop. Cost: a brief desktop

@@ -108,12 +108,12 @@ final class PlaybackEngine: Player {
             switch file {
             case .image(let url)? where images[url] == nil:
                 images[url] = PreflightRunner.logoImage(at: url)
-                if images[url] == nil { Log.info("logo \(index + 1) cannot be loaded: \(url.path)") }
+                if images[url] == nil { Log.info("picture \(index + 1) cannot be loaded: \(url.path)") }
             case .loop(let url)? where loops[url] == nil:
                 let loop = LoopLogo(url: url)
                 loops[url] = loop
                 window.addLoop(url, player: loop.player)
-                Log.info("logo \(index + 1) loops \(url.path)")
+                Log.info("picture \(index + 1) loops \(url.path)")
             default:
                 break
             }
@@ -127,6 +127,11 @@ final class PlaybackEngine: Player {
         case .image(let url): return images[url].map(LogoPicture.image)
         case .loop(let url): return .loop(url)
         }
+    }
+
+    // What a logo cue shows: Logo 1 or 2 only, so a slot never becomes the live item.
+    func liveLogo(_ number: Int) -> LogoPicture? {
+        (1...logoCount).contains(number) ? logo(number) : nil
     }
 
     func loopPlayer(_ url: URL) -> AVPlayer? {
@@ -239,7 +244,7 @@ final class PlaybackEngine: Player {
         case .black:
             window.showBase(clip: nil, logo: nil, breakScreen: false)
         case .logo(let number):
-            basePicture = logo(number)
+            basePicture = liveLogo(number)
             window.showBase(clip: nil, logo: basePicture, breakScreen: false)
         case .clip(let slot):
             window.showBase(clip: slot, logo: nil, breakScreen: false)

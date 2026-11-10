@@ -24,7 +24,7 @@ build/Attacca.app/Contents/MacOS/Attacca build/samples/samples.concert.json   # 
 build/Attacca.app/Contents/MacOS/Attacca                                     # reopens the last show
 ```
 
-Check a show without the UI (no windows, writes nothing; JSON report on stdout):
+Check a show and this Mac's default set without the UI (no windows, writes nothing; JSON report on stdout):
 
 ```sh
 build/Attacca.app/Contents/MacOS/Attacca --check ~/Movies/Gala/gala.concert.json   # or a .movie.json or a clip folder
@@ -39,6 +39,7 @@ laptop panel. Files (folder names follow `app.env`):
 - Log: `~/Library/Logs/Attacca/YYYY-MM-DD.log`
 - State (crash recovery, last show, mode): `~/Library/Application Support/me.blint.attacca/state.json`
 - Key map (edit, then relaunch): `~/Library/Application Support/me.blint.attacca/keymap.json`
+- Default set (Logo 1, Logo 2, slots 1 to 6): `~/Library/Application Support/me.blint.attacca/slots.json`
 - Cheat sheet (Advanced view, Ctrl+Opt+D): `~/Library/Application Support/me.blint.attacca/cheatsheet.html`
 
 ## Clip formats

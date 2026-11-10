@@ -24,8 +24,12 @@ enum Check {
                 error: (error as? ShowError)?.description ?? "\(url.lastPathComponent): \(error.localizedDescription)")
         }
         let cues = document.cues
-        let logos = document.logos
-        // Loop logos are probed like clips.
+        // The app's own default set, read only; a broken one counts as empty, as in the app.
+        let (defaults, defaultsError) = SlotSet.load(
+            from: AppInfo.supportDirectory.appendingPathComponent(SlotSet.fileName))
+        let pictures = Pictures.merge(defaults: defaults, concert: document.concert, concertURL: document.url)
+        let logos = pictures.map { $0?.file }
+        // Loop logos and slots are probed like clips.
         let files = Set(
             cues.compactMap { cue -> URL? in if case .clip(_, let url) = cue.kind { url } else { nil } }
                 + logos.compactMap { logo -> URL? in if case .loop(let url)? = logo { url } else { nil } })
@@ -41,9 +45,10 @@ enum Check {
                 guard case .image(let url)? = logo, PreflightRunner.logoImage(at: url) != nil else { return nil }
                 return url
             })
+        let broken = defaultsError.map { [Finding(severity: .warn, kind: .defaultSet, detail: $0.description)] } ?? []
         let findings =
-            Preflight.evaluate(cues: cues, probes: probes, logos: logos)
-            + Preflight.evaluate(logos: logos, images: images, probes: probes)
+            broken + Preflight.evaluate(cues: cues, probes: probes, logos: logos)
+            + Preflight.evaluate(pictures: pictures, images: images, probes: probes)
         return CheckReport(show: path, title: document.title, cues: cues, findings: findings)
     }
 }

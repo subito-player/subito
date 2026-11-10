@@ -97,3 +97,91 @@ private func merge(_ concert: Concert?) -> [Picture?] {
         #expect(try JSONDecoder().decode(SlotSet.self, from: Data(#"{ "format": 1 }"#.utf8)) == SlotSet())
     }
 }
+
+@Suite struct DefaultSetFileTests {
+    @Test func aMissingFileIsTheEmptySet() throws {
+        try withTempDir { dir in
+            let (set, error) = SlotSet.load(from: dir.appendingPathComponent(SlotSet.fileName))
+            #expect(set == SlotSet())
+            #expect(error == nil)
+        }
+    }
+
+    // The owner's hand edit with a typo is reported, loads as empty, and survives the first save from the app.
+    @Test func aBrokenFileIsKeptAsideNeverSavedOver() throws {
+        try withTempDir { dir in
+            let url = dir.appendingPathComponent(SlotSet.fileName)
+            let broken = #"{ "format": 1, "slots": [{ "name": "Thanks" }] }"#
+            try write(broken, to: url)
+            let (set, error) = SlotSet.load(from: url)
+            #expect(set == SlotSet())
+            guard case .invalidJSON? = error else {
+                Issue.record("expected invalidJSON, got \(String(describing: error))")
+                return
+            }
+            #expect(try String(contentsOf: url, encoding: .utf8) == broken)
+
+            var changed = SlotSet()
+            changed.setPicture(3, .own(SlotEntry(name: "Sponsor", file: "/set/sponsor.png")))
+            try changed.save(to: url, overBroken: true)
+            #expect(try String(contentsOf: SlotSet.brokenURL(for: url), encoding: .utf8) == broken)
+            #expect(SlotSet.brokenURL(for: url).lastPathComponent == "slots.broken.json")
+            let (reloaded, reloadError) = SlotSet.load(from: url)
+            #expect(reloaded == changed)
+            #expect(reloadError == nil)
+        }
+    }
+
+    @Test func aNewerFormatIsReportedNotRead() throws {
+        try withTempDir { dir in
+            let url = dir.appendingPathComponent(SlotSet.fileName)
+            try write(#"{ "format": 2, "logos": ["/set/a.png"] }"#, to: url)
+            let (set, error) = SlotSet.load(from: url)
+            #expect(set == SlotSet())
+            #expect(error == .unsupportedFormat(file: url, format: 2))
+        }
+    }
+
+    // Clearing a picture leaves no null tail, so an emptied set saves as a bare format.
+    @Test func settingADefaultPictureStoresItAndClearingRemovesIt() {
+        var set = SlotSet()
+        set.setPicture(2, .own(SlotEntry(name: "", file: "/set/event.mov")))
+        set.setPicture(4, .own(SlotEntry(name: "Thanks", file: "/set/thanks.png")))
+        #expect(
+            set
+                == SlotSet(
+                    logos: [nil, .loop("/set/event.mov")],
+                    slots: [nil, SlotEntry(name: "Thanks", file: "/set/thanks.png")]))
+        set.setPicture(4, .empty)
+        set.setPicture(2, .useDefault)
+        #expect(set == SlotSet())
+    }
+}
+
+@Suite struct CoverRefusalTests {
+    private func refuses(_ command: Command, cover: Cover?, showable: Set<Int>) -> Bool {
+        ShowState.refusesCover(command, cover: cover, showable: showable)
+    }
+
+    @Test func anEmptyOrUnloadedPictureNeverComesOn() {
+        #expect(refuses(.toggleCover(.logo(5)), cover: nil, showable: [1, 2, 3]))
+        // Logo 1 stays up: a stray slot press does not swap it for black.
+        #expect(refuses(.toggleCover(.logo(5)), cover: .logo(1), showable: [1, 2, 3]))
+        #expect(refuses(.toggleCover(.logo(1)), cover: .black, showable: []))
+    }
+
+    @Test func theShownPictureAlwaysGoesOffEvenIfItsFileVanished() {
+        #expect(!refuses(.toggleCover(.logo(5)), cover: .logo(5), showable: []))
+    }
+
+    @Test func aLoadedPictureComesOnOrSwaps() {
+        #expect(!refuses(.toggleCover(.logo(5)), cover: nil, showable: [5]))
+        #expect(!refuses(.toggleCover(.logo(2)), cover: .logo(5), showable: [2]))
+    }
+
+    @Test func blackAndOtherCommandsAreNeverRefused() {
+        #expect(!refuses(.toggleCover(.black), cover: nil, showable: []))
+        #expect(!refuses(.toggleCover(.black), cover: .logo(3), showable: []))
+        #expect(!refuses(.go, cover: nil, showable: []))
+    }
+}
