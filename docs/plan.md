@@ -99,3 +99,14 @@ end with one newline; agents never commit or launch the app; `make lint test app
 
 - `design.md` (keys table: numpad slots, keypad digits no longer arm; control window; editor), `show-files.md`
   (`slots`, `logos` null), `rehearsal-test.md` (slot TV checks), README. VERSION 0.3.0; owner TV check, then tag.
+
+## MCP server (started 2026-11-11, branch `mcp`, spec: `design.md` "MCP server")
+
+1. **Core** (`CueCore`): JSON-RPC/MCP stdio handler (initialize with version negotiation, ping, tools/list,
+   tools/call, notifications ignored, protocol errors) and the four tools over `ShowLoader`/`ShowDocument`; check and
+   "open in the running app" injected as closures. Tests pin each `design.md` rule.
+2. **App** (`CueApp`): `--mcp` in the launch parser and `main.swift`; stdin line loop; check = `Check`'s report;
+   open-show lookup from `state.json` + running Subito processes; `make app` bundles `docs/show-files.md`.
+3. **Docs**: README "Use with Claude" (Desktop config, `claude mcp add`), usage text.
+4. **Trial**: headless Claude Code session with `--mcp-config` builds a movie and a concert from a sample folder;
+   `--check` and the app open the result. Owner tries Claude Desktop. Merge if usable.

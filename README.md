@@ -51,6 +51,55 @@ laptop panel. Files (folder names follow `app.env`):
 - Default set (Logo 1, Logo 2, slots 1 to 6): `~/Library/Application Support/me.blint.subito/slots.json`
 - Cheat sheet (Advanced view, Ctrl+Opt+D): `~/Library/Application Support/me.blint.subito/cheatsheet.html`
 
+## Use with Claude
+
+`Subito --mcp` is a local MCP server for show preparation: Claude reads, writes and checks movie and concert files,
+for example after cutting the operator clips in another tool. Show files only: it never starts or controls the app or
+the projector, never writes the key map, the default set or the state file, and opens no network port. Install and
+open the app once first (see First open).
+
+Claude Desktop: add this to `~/Library/Application Support/Claude/claude_desktop_config.json`, then restart Claude
+Desktop:
+
+```json
+{
+  "mcpServers": {
+    "subito": {
+      "command": "/Applications/Subito.app/Contents/MacOS/Subito",
+      "args": ["--mcp"]
+    }
+  }
+}
+```
+
+Claude Code:
+
+```sh
+claude mcp add --scope user subito -- /Applications/Subito.app/Contents/MacOS/Subito --mcp
+```
+
+For a build from source, use the absolute path of `build/Subito.app/Contents/MacOS/Subito` instead.
+
+What Claude can do with it:
+
+- `show_file_format`: read the [show file format](docs/show-files.md) before writing.
+- `read_show`: a movie, a concert or a clip folder as Subito reads it (a folder without a movie file: the movie
+  Subito would make from its clips, not saved).
+- `write_show`: write a whole movie or concert file. It gets the same checks Subito runs when it opens a show, and an
+  invalid show is never written. Paths inside the show that are absolute or start with `~` are stored relative when
+  they are inside the show's folder, else absolute. A file it replaces goes to the macOS Trash first, so a wrong
+  write can be undone from Finder. Answers with the check report of the written file.
+- `check_show`: the `--check` report.
+
+What it cannot do: play, arm or switch anything, change the key map or the default set, or take a relative path as a
+tool argument (tool paths are absolute or start with `~`).
+
+Write guard: `write_show` refuses a file that a running Subito has open (the open show, or a movie of the open
+concert), because the app's next save would overwrite it. Close the show in Subito (open another show or quit), let
+Claude write, then open it again. Started from a bare build binary (no app bundle) it cannot tell, so it refuses
+every write: always point Claude at `Subito.app/Contents/MacOS/Subito`. Each tool call is one line on stderr, which
+Claude Desktop keeps in its MCP logs (`~/Library/Logs/Claude/mcp*.log`).
+
 ## Clip formats
 
 Plays MP4 and MOV (H.264, HEVC, ProRes). MKV, WebM and most AVI files don't play (preflight marks them red). In

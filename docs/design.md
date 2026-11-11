@@ -250,6 +250,40 @@ original); looping logos.
 keys), editor extras, bar numbers mapped to timestamps (park armed clip by bar), phone status mirror / rehearsal
 remote, rehearsal timer, per-clip notes, Windows.
 
+## MCP server (2026-11-11, show preparation)
+
+Why: the owner prepares shows by talking to Claude (Claude Code and Claude Desktop on the same Mac): Claude cuts the
+operator clips in Palmier, then writes the movie and concert files. Claude Desktop has no shell, so it cannot write
+show files or run `--check` without a server; in Claude Code the server saves hand-written JSON mistakes.
+
+- `Subito --mcp`: MCP over stdio (newline-delimited JSON-RPC 2.0), started by the client like `--check`, before any
+  NSApplication. Tools only; no resources, prompts or sampling. Logs to stderr only (one line per tool call).
+- Files only. Never controls a running app or the projector; reads `state.json` (write guard) and `slots.json`
+  (check) but never writes them or the key map. No live control: an AI driving the projector mid-concert is the
+  "something surprising" the app exists to prevent.
+- Local only: no network listener. Claude mobile would need a public server, so it is out.
+- Tools:
+  - `show_file_format`: `docs/show-files.md`, bundled into the app's Resources by `make app`.
+  - `read_show(path)`: a `.movie.json`, `.concert.json` or clip folder (folder without a movie file: the movie the
+    editor would generate, marked not saved). Returns the file's content as the app reads it.
+  - `write_show(path, show)`: the complete movie or concert as a JSON object; the type comes from the file suffix,
+    anything else is refused. Decoded with the app's models and checked with the loader's rules (format, item types,
+    no clip in a concert, no movie in a movie, movie refs exist) before anything is written; an invalid show never
+    reaches disk. Absolute paths inside the file's folder tree are stored relative, as the editor does. Written by
+    `ShowLoader.save` (same encoder, NFC). The folder must exist. Fields left out are gone: send the whole file.
+    Returns the `--check` report of the written file.
+    - `~` in a path inside the show is expanded before that rule, because the app would read it as a folder name.
+    - A symlinked show file is written through to its target; the link stays a link.
+    - A file it replaces goes to the macOS Trash first (after validation and the write guard); the result says so. If
+      the save then fails, the old file is moved back.
+  - `check_show(path)`: the `--check` JSON report.
+- Write guard: `write_show` refuses a file the running app has open (the open show, or a movie of the open concert),
+  because the app's next save would overwrite it. Open = another Subito process is running and `state.json` names
+  the show. Close the show in Subito, write, open it again. Without a bundle ID (a bare build binary) the server
+  cannot find the app or its state file, so it refuses every write.
+- Setup: Claude Desktop `claude_desktop_config.json` and `claude mcp add` both point at
+  `<app>/Contents/MacOS/Subito --mcp` (README).
+
 ## To verify on hardware before Friday
 
 Verified 2026-11-09 (owner desk, macOS 27.2, output on the main external display): the shielding-level black window

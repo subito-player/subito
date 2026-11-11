@@ -14,6 +14,10 @@ case .check(let path):
     // Before any NSApplication, so no window, display, sleep assertion, state file or key map is ever touched.
     Task { exit(await Check.run(path: path)) }
     dispatchMain()
+case .mcp:
+    // Also before any NSApplication: stdout carries only protocol lines.
+    Task { exit(await MCP.run()) }
+    dispatchMain()
 case .usage:
     try? FileHandle.standardError.write(contentsOf: Data(CheckCommand.usage(program: AppInfo.name).utf8))
     exit(CheckCommand.usageExitCode)

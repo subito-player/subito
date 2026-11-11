@@ -54,6 +54,13 @@ func withTempDir(_ body: (URL) throws -> Void) throws {
     try body(dir)
 }
 
+func withAsyncTempDir(_ body: (URL) async throws -> Void) async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent("cue-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    try await body(dir)
+}
+
 func write(_ text: String, to url: URL) throws {
     try FileManager.default.createDirectory(
         at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
