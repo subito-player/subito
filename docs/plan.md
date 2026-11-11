@@ -122,5 +122,5 @@ end with one newline; agents never commit or launch the app; `make lint test app
 3. [x] **Advanced view**: "Claude" section after Updates (Install button with notice, command with Copy), install
    rehearsal only; Strings HU + EN.
 4. [x] **Docs**: README "Use with Claude", `design.md` MCP section.
-5. [ ] **Trial** (owner): click Install in Claude Desktop, then Install in its dialog; paste the Copy command in a
-   terminal.
+5. [x] **Trial** (owner, 2026-11-11): Install from the build's Advanced view, Claude Desktop accepted the extension
+   and ran `check_show` on a real concert (ok, 11 cues). The Copy command was not tried.
