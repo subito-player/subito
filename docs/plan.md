@@ -124,3 +124,13 @@ end with one newline; agents never commit or launch the app; `make lint test app
 4. [x] **Docs**: README "Use with Claude", `design.md` MCP section.
 5. [x] **Trial** (owner, 2026-11-11): Install from the build's Advanced view, Claude Desktop accepted the extension
    and ran `check_show` on a real concert (ok, 11 cues). The Copy command was not tried.
+
+## LIVE shows covers (started 2026-11-11, branch `live-cover`)
+
+1. [x] **Engine** (`PlaybackEngine`): read-only `shownCover`, `coverPicture` (kept while a logo fades out, dropped by a
+   cut or a new base) and `coverFade` (the last cover change's fade, 0 = cut).
+2. [x] **LIVE preview** (`Previews.swift`): the cover drawn over the LIVE box above the slot layers, black or the
+   logo (image or loop), its opacity fading with `coverFade`; tag, progress bar and timers unchanged.
+3. [x] **Docs**: `design.md` Behaviour and Control window, `rehearsal-test.md` check.
+4. [x] **On screen** (owner, 2026-11-11): B, L (a looping video) and an image slot during a clip; LIVE matched the
+   projector.

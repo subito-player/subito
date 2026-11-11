@@ -30,6 +30,9 @@ time. Note every surprise in the log at the bottom; it drives v0.2.
       Concert mode, locked: click Slot 1 fades it in; no Edit button.
    9. Logo names: Szerkesztés, click Logó 1, Név "Blades of Chaos": the button, a logo item in the list and the TAKARVA
       tag read it, the projector shows no name. Clear the name: "Logó 1" again.
+   10. LIVE preview: while a clip runs, press B, L, Shift+L (the loop) and numpad 1, each on and off. LIVE matches the
+       projector every time, the logo fade and the moving loop included; the TAKARVA tag says "fut" (running) and the
+       timers keep counting.
 4. Load the real show (Open in the top bar, then the clip folder or the concert file). Preflight line is green;
    click it for the list, tick the manual checks.
 5. Editor (rehearsal mode): Szerkesztés, check the clip order, set planned end and tail on one clip (markers move),

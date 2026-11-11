@@ -48,7 +48,11 @@ final class PlaybackEngine: Player {
     private var coverLoop: URL?
     private var base: Base = .black
     // What the cover layers show, a logo that cannot load being black.
-    private var shownCover: Cover?
+    private(set) var shownCover: Cover?
+    // What the cover logo layer is painted with, kept while it fades out, so LIVE matches the projector.
+    private(set) var coverPicture: LogoPicture?
+    // The last cover change's fade in seconds; 0 is a cut.
+    private(set) var coverFade: TimeInterval = 0
     // True while a GO's effects run, so its cover change cuts in the same transaction as the new base.
     private var applyingGo = false
     private var breakTimer: Timer?
@@ -277,6 +281,7 @@ final class PlaybackEngine: Player {
         }
         baseLoop = basePicture?.loop
         // A new base also cuts a cover fade, so nothing is left fading out.
+        if shownCover == nil { coverPicture = nil }
         syncLoops(fadeOut: 0)
     }
 
@@ -284,8 +289,10 @@ final class PlaybackEngine: Player {
         let picture: LogoPicture? = if case .logo(let number) = cover { logo(number) } else { nil }
         let shown: Cover? = cover != nil && picture == nil ? .black : cover
         let fade = ShowState.fadesCover(from: shownCover, to: shown, withGo: applyingGo)
-        window.showCover(logo: picture, black: shown == .black, fade: fade ? ShowState.logoFade : 0)
+        coverFade = fade ? ShowState.logoFade : 0
+        window.showCover(logo: picture, black: shown == .black, fade: coverFade)
         shownCover = shown
+        coverPicture = picture ?? (fade ? coverPicture : nil)
         coverLoop = picture?.loop
         syncLoops(fadeOut: fade && picture == nil ? ShowState.logoFade : 0)
     }

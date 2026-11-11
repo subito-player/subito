@@ -34,6 +34,8 @@ struct Previews: View {
                 GeometryReader { geometry in
                     slotPreview(.a, state, in: geometry.size)
                     slotPreview(.b, state, in: geometry.size)
+                    // Above the slot layers, so a cover hides the clip in LIVE as on the projector.
+                    box(coverPreview(), next: false, in: geometry.size)
                 }
             }
             HStack(spacing: Self.gap) {
@@ -45,16 +47,37 @@ struct Previews: View {
 
     // One fixed layer per slot, moved between the boxes by role, so GO never re-points a layer at another player.
     private func slotPreview(_ slot: Slot, _ state: ShowState, in size: CGSize) -> some View {
-        let half = max(0, (size.width - Self.gap) / 2)
-        let width = min(half, size.height * 16 / 9)
         let next = state.armedSlot == slot
         let shown = next || state.base == .clip(slot)
-        return PlayerPreview(player: model.engine.player(for: slot))
-            .frame(width: width, height: width * 9 / 16)
+        return box(PlayerPreview(player: model.engine.player(for: slot)), next: next, in: size).opacity(shown ? 1 : 0)
+    }
+
+    // Lays a view over the LIVE or the NEXT box from the overlay spanning both.
+    private func box(_ content: some View, next: Bool, in size: CGSize) -> some View {
+        let half = max(0, (size.width - Self.gap) / 2)
+        let width = min(half, size.height * 16 / 9)
+        return content.frame(width: width, height: width * 9 / 16)
             .clipShape(RoundedRectangle(cornerRadius: 4))
             .offset(x: (half - width) / 2 + (next ? half + Self.gap : 0), y: (size.height - width * 9 / 16) / 2)
-            .opacity(shown ? 1 : 0)
             .allowsHitTesting(false)
+    }
+
+    // Read from the engine, never from ShowState: a cover whose picture cannot load is black there.
+    private func coverPreview() -> some View {
+        let engine = model.engine
+        let logo: Bool = if case .logo = engine.shownCover { true } else { false }
+        let fade = engine.coverFade
+        return ZStack {
+            ZStack {
+                if let picture = engine.coverPicture {
+                    Color.black
+                    LogoPreview(picture: picture, engine: engine)
+                }
+            }
+            // Only the opacity animates, as on the output; the picture itself always changes at once.
+            .animation(fade > 0 ? .linear(duration: fade) : nil) { $0.opacity(logo ? 1 : 0) }
+            if engine.shownCover == .black { Color.black }
+        }
     }
 
     private func liveLabel(_ s: Strings, _ state: ShowState) -> some View {
