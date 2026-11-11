@@ -220,9 +220,9 @@ public enum ShowLoader {
     static func write<T: Encodable>(_ value: T, to url: URL) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        var data = try encoder.encode(value)
-        data.append(0x0A)
-        try data.write(to: url, options: .atomic)
+        // Foundation paths come out decomposed (NFD); Windows matches names exactly, and there they are NFC.
+        let text = String(decoding: try encoder.encode(value), as: UTF8.self).precomposedStringWithCanonicalMapping
+        try Data((text + "\n").utf8).write(to: url, options: .atomic)
     }
 
     static func describe(_ error: Error) -> String {
