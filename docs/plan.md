@@ -132,5 +132,5 @@ end with one newline; agents never commit or launch the app; `make lint test app
 2. [x] **LIVE preview** (`Previews.swift`): the cover drawn over the LIVE box above the slot layers, black or the
    logo (image or loop), its opacity fading with `coverFade`; tag, progress bar and timers unchanged.
 3. [x] **Docs**: `design.md` Behaviour and Control window, `rehearsal-test.md` check.
-4. [ ] **On screen** (owner): `rehearsal-test.md` step 3.10 (B, L, Shift+L as a looping video, a slot during a
-   clip).
+4. [x] **On screen** (owner, 2026-11-11): B, L (a looping video) and an image slot during a clip; LIVE matched the
+   projector.
