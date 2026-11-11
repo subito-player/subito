@@ -44,6 +44,7 @@ struct AdvancedPanel: View {
                         .opacity(concert ? 0.55 : 1)
                     Text(updateLine(s)).foregroundStyle(Palette.dim).lineLimit(1)
                 }
+                claudeSection(s, concert: concert)
             }
             .padding(14)
             Palette.line.frame(height: 1)
@@ -67,6 +68,30 @@ struct AdvancedPanel: View {
         row(
             s.memory,
             s.memory(now: Advanced.megabytes(advanced.memory), launch: Advanced.megabytes(advanced.memoryAtLaunch)))
+    }
+
+    @ViewBuilder
+    private func claudeSection(_ s: Strings, concert: Bool) -> some View {
+        let claude = model.claude
+        heading("Claude")
+        HStack(spacing: 10) {
+            BarButton(text: s.installInClaudeDesktop, action: model.installInClaudeDesktop)
+                .disabled(concert)
+                .opacity(concert ? 0.55 : 1)
+            if let note = claude.installNote { Text(s.claudeNote(note)).foregroundStyle(Palette.warn).lineLimit(1) }
+        }
+        HStack(spacing: 10) {
+            Text(claude.codeCommand)
+                .font(.system(size: 13, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+            BarButton(text: s.copyCommand, action: claude.copyCodeCommand).layoutPriority(1).fixedSize()
+            if let note = claude.copyNote {
+                Text(s.claudeNote(note)).foregroundStyle(Palette.warn).lineLimit(1).layoutPriority(1)
+            } else if claude.copied {
+                Text(s.copied).foregroundStyle(Palette.dim).layoutPriority(1).fixedSize()
+            }
+        }
     }
 
     private func updateLine(_ s: Strings) -> String {

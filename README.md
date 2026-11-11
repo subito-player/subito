@@ -58,6 +58,17 @@ for example after cutting the operator clips in another tool. Show files only: i
 the projector, never writes the key map, the default set or the state file, and opens no network port. Install and
 open the app once first (see First open).
 
+Set up from the Advanced view (Ctrl+Opt+D), Claude section, in rehearsal mode:
+
+- Claude Desktop: click "Install in Claude Desktop" (Telepítés a Claude Desktopba), then Install in the dialog Claude
+  Desktop opens.
+- Claude Code: click Copy (Másolás), paste the command in a terminal.
+
+Both point at the app you clicked in, and the last setup wins: Claude Desktop replaces the extension of the same name,
+and the copied command removes the old `subito` entry first. Do it from the app in `/Applications`: from a mounted dmg
+or a quarantined download the buttons ask you to move the app first. Remove any hand-added `subito` entry from
+`claude_desktop_config.json` before using Install, otherwise Desktop runs two. By hand instead:
+
 Claude Desktop: add this to `~/Library/Application Support/Claude/claude_desktop_config.json`, then restart Claude
 Desktop:
 

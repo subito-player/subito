@@ -110,3 +110,17 @@ end with one newline; agents never commit or launch the app; `make lint test app
 3. **Docs**: README "Use with Claude" (Desktop config, `claude mcp add`), usage text.
 4. **Trial**: headless Claude Code session with `--mcp-config` builds a movie and a concert from a sample folder;
    `--check` and the app open the result. Owner tries Claude Desktop. Merge if usable.
+
+## Claude setup buttons (started 2026-11-11, branch `claude-connect`)
+
+1. [x] **Core** (`CueCore/ClaudeSetup.swift`): `codeCommand` (single-quoted path), `manifest` (`.mcpb` manifest 0.3,
+   binary server), `pack` (`ditto` zip with the files at the root). Tests: quoting survives `/bin/sh`, manifest
+   fields, zip root listing.
+2. [x] **App** (`CueApp/ClaudeConnect.swift`): icon PNG from the running app, pack to the temp folder, open with
+   Claude Desktop, notices (not installed, pack or open failed), Copy to the pasteboard. Install and Copy refuse a
+   dmg-mounted or translocated app; the copied command removes the old entry first (last setup wins).
+3. [x] **Advanced view**: "Claude" section after Updates (Install button with notice, command with Copy), install
+   rehearsal only; Strings HU + EN.
+4. [x] **Docs**: README "Use with Claude", `design.md` MCP section.
+5. [ ] **Trial** (owner): click Install in Claude Desktop, then Install in its dialog; paste the Copy command in a
+   terminal.

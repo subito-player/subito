@@ -586,6 +586,19 @@ struct Strings {
     var updates: String { pick("Frissítések", "Updates") }
     var checkForUpdates: String { pick("Frissítések keresése", "Check for updates") }
     var checkingForUpdates: String { pick("Keresés...", "Checking...") }
+    var installInClaudeDesktop: String { pick("Telepítés a Claude Desktopba", "Install in Claude Desktop") }
+    var copyCommand: String { pick("Másolás", "Copy") }
+    var copied: String { pick("Kimásolva", "Copied") }
+
+    func claudeNote(_ note: ClaudeConnect.Note) -> String {
+        switch note {
+        case .desktopMissing: pick("A Claude Desktop nincs telepítve", "Claude Desktop is not installed")
+        case .moveToApplications:
+            pick("Előbb másold az appot az Alkalmazások mappába", "Move the app to Applications first")
+        case .packFailed: pick("Nem sikerült létrehozni a bővítményt", "Could not create the extension")
+        case .openFailed: pick("Nem sikerült megnyitni a Claude Desktopot", "Could not open Claude Desktop")
+        }
+    }
 
     func upToDate(_ version: AppVersion?) -> String {
         let shown = version.map { " (v\($0))" } ?? ""
