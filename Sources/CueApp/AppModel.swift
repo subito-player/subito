@@ -110,6 +110,7 @@ final class AppModel {
     let advanced = Advanced()
     let converter = Converter()
     let updates = UpdateChecker()
+    let claude = ClaudeConnect()
     private(set) var document: ShowDocument?
     // Logo 1, Logo 2 and slots 1 to 6 every concert starts from, and all a single movie shows.
     private(set) var defaultSlots: SlotSet
@@ -560,6 +561,12 @@ final class AppModel {
     func openLogFolder() {
         guard state.mode == .rehearsal else { return }
         NSWorkspace.shared.open(Log.directory)
+    }
+
+    // Hands focus to Claude Desktop, so rehearsal only.
+    func installInClaudeDesktop() {
+        guard state.mode == .rehearsal else { return }
+        claude.installInDesktop()
     }
 
     // The owner edits keymap.json; a broken one never takes the show keys away.

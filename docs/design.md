@@ -142,7 +142,8 @@ reaching the app, click here" banner.
 
 **Advanced view (Ctrl+Opt+D, for the owner):** log tail, key-to-switch timings, projector modes, memory use (now and
 at launch), stress runner (random GO/BLACK/LOGO/arm, rehearsal only, any key stops it), cheat sheet, key map and log
-folder buttons, check for updates with a one-line result. Per-clip file details are in the preflight panel and the log.
+folder buttons, check for updates with a one-line result, Claude setup buttons (see MCP server). Per-clip file details
+are in the preflight panel and the log.
 
 **Updates (rehearsal only):** the app asks GitHub's public API (`/repos/<UPDATE_REPO from app.env>/releases/latest`, no
 token, 10 s timeout, `User-Agent: <name>/<version>`) once about 5 s after launch and when the Advanced view's "Check
@@ -283,6 +284,17 @@ show files or run `--check` without a server; in Claude Code the server saves ha
   cannot find the app or its state file, so it refuses every write.
 - Setup: Claude Desktop `claude_desktop_config.json` and `claude mcp add` both point at
   `<app>/Contents/MacOS/Subito --mcp` (README).
+- Setup buttons (Advanced view, "Claude" section, 2026-11-11): "Install in Claude Desktop" builds a `.mcpb` Desktop
+  Extension (zip with `manifest.json` and the app icon) from the running app in the temp folder and opens it with
+  Claude Desktop (`com.anthropic.claudefordesktop`), which shows its install dialog. `server.type` is `binary` with
+  the app's own executable as command and `--mcp` as the argument. Rehearsal only (it hands focus to another app).
+  Next to it the Claude Code command with a Copy button: `claude mcp remove --scope user <name> 2>/dev/null;
+  claude mcp add --scope user <name> -- '<path>' --mcp`, path single-quoted, remove first because `claude mcp add`
+  refuses an existing name. The last setup wins: Desktop replaces the extension of the same name, the command
+  replaces the Code entry. A hand-added `claude_desktop_config.json` entry is separate: remove it, or Desktop runs two.
+  From a dmg mount (`/Volumes/`) or a translocated copy (`/AppTranslocation/`) the path would disappear, so Install
+  and Copy refuse with "Move the app to Applications first". Both live in `CueCore/ClaudeSetup.swift`, the clicks in
+  `CueApp/ClaudeConnect.swift`.
 
 ## To verify on hardware before Friday
 
