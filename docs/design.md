@@ -65,7 +65,8 @@ also generate movie files.
 last frame; no loop, no stop screen). Cover: none, black, logo 1, logo 2, slot 1 to 6.
 - B / L / Shift+L / keypad 1 to 6 put a cover over the live item. The clip under it keeps its state: playing keeps
   running hidden (in step with the music), paused stays on its frame. Space, seek and Home still act on the covered
-  clip; LIVE preview names the cover and the clip's state, e.g. "COVERED · Logo 1 · running".
+  clip. LIVE shows the cover as the projector does (black, or the logo, fading when the projector fades it), and its
+  tag still names the cover and the hidden clip's state, e.g. "COVERED · Logo 1 · running".
 - Same key again removes the cover (no separate uncover key). Another cover key swaps the cover.
 - A logo or slot that is empty, or whose file did not load, never comes on: the press changes nothing on the
   projector and the status line says why ("Slot 3 is empty"). Taking a cover off always works; B is never refused.
@@ -130,8 +131,9 @@ from then on keys drive the show again.
 
 **Control window (layout A, always dark):** top bar (mode toggle, concert title, Open, projector/power/audio/Hz
 status dots, last key, HU/EN, `?` for the key list, closed by `?` again or its Close button); left 30% two-level list
-(movie headers, items, LIVE red, ARMED amber); right LIVE and NEXT previews side by side, the clip's brief (2 lines)
-under each title (NEXT has its own small scrub bar for parking), progress bar with white planned-end and amber
+(movie headers, items, LIVE red, ARMED amber); right LIVE and NEXT previews side by side (LIVE always shows what the
+projector shows, a cover included), the clip's brief (2 lines) under each title (NEXT has its own small scrub bar for
+parking), progress bar with white planned-end and amber
 tail-end markers, big "to planned end" time,
 smaller "to clip end"; button area: a big GO on the left spanning two rows, row 1 Play, Restart, -30, -5, +5, +30,
 BLACK, Sound, row 2 "Logos and slots": Logo 1, Logo 2, slots 1 to 6, each with a thumbnail ("LOOP" for a video), its
