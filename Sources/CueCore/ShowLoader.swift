@@ -70,13 +70,20 @@ public enum ShowLoader {
     }
 
     public static func loadMovie(at url: URL) throws -> Movie {
-        let movie = try decode(Movie.self, from: url)
+        try validate(try decode(Movie.self, from: url), at: url)
+    }
+
+    public static func loadConcert(at url: URL) throws -> LoadedConcert {
+        try validate(try decode(Concert.self, from: url), at: url)
+    }
+
+    static func validate(_ movie: Movie, at url: URL) throws -> Movie {
         for case .movie in movie.items { throw ShowError.movieContainsMovie(file: url) }
         return movie
     }
 
-    public static func loadConcert(at url: URL) throws -> LoadedConcert {
-        let concert = try decode(Concert.self, from: url)
+    // Every movie the concert names must exist and load, so this reads those files.
+    static func validate(_ concert: Concert, at url: URL) throws -> LoadedConcert {
         var movies: [URL: Movie] = [:]
         for item in concert.items {
             switch item {
@@ -204,6 +211,11 @@ public enum ShowLoader {
 
     static func decode<T: Decodable>(_ type: T.Type, from url: URL) throws -> T {
         guard let data = try? Data(contentsOf: url) else { throw ShowError.fileMissing(url) }
+        return try decode(type, from: data, file: url)
+    }
+
+    // `file` only names the show in errors.
+    static func decode<T: Decodable>(_ type: T.Type, from data: Data, file url: URL) throws -> T {
         let decoder = JSONDecoder()
         do {
             // Header first so a newer format reports "update the app" instead of a parse error.
@@ -218,11 +230,14 @@ public enum ShowLoader {
     }
 
     static func write<T: Encodable>(_ value: T, to url: URL) throws {
+        try Data((try text(value) + "\n").utf8).write(to: url, options: .atomic)
+    }
+
+    static func text<T: Encodable>(_ value: T) throws -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         // Foundation paths come out decomposed (NFD); Windows matches names exactly, and there they are NFC.
-        let text = String(decoding: try encoder.encode(value), as: UTF8.self).precomposedStringWithCanonicalMapping
-        try Data((text + "\n").utf8).write(to: url, options: .atomic)
+        return String(decoding: try encoder.encode(value), as: UTF8.self).precomposedStringWithCanonicalMapping
     }
 
     static func describe(_ error: Error) -> String {

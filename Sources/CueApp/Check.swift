@@ -13,7 +13,7 @@ enum Check {
         return report.exitCode
     }
 
-    private static func report(for path: String) async -> CheckReport {
+    static func report(for path: String) async -> CheckReport {
         let url = URL(fileURLWithPath: NSString(string: path).expandingTildeInPath).standardizedFileURL
         let document: ShowDocument
         do {

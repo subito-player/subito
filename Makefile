@@ -76,6 +76,8 @@ app:
 	cp "$$(swift build -c release $(ARCHS) --product CueApp --show-bin-path)/CueApp" "$(APP_DIR)/Contents/MacOS/$(APP_NAME)"
 	printf '%s\n' "$$INFO_PLIST" > "$(APP_DIR)/Contents/Info.plist"
 	plutil -lint "$(APP_DIR)/Contents/Info.plist"
+	# The --mcp show_file_format tool serves this copy.
+	cp docs/show-files.md "$(APP_DIR)/Contents/Resources/show-files.md"
 	# Icon Composer source to Assets.car (macOS 26) and AppIcon.icns (14, 15); absolute paths, its daemon's cwd can be stale.
 	xcrun actool --compile "$(CURDIR)/$(APP_DIR)/Contents/Resources" --platform macosx --minimum-deployment-target 14.0 \
 		--app-icon AppIcon --output-partial-info-plist "$(CURDIR)/build/AppIcon.plist" \
