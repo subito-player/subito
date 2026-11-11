@@ -225,6 +225,19 @@ import Testing
             #expect(try ShowLoader.loadMovie(at: url) == edited)
         }
     }
+
+    @Test func savedFileSpellsAccentsPrecomposed() throws {
+        try withTempDir { dir in
+            let folder = dir.appendingPathComponent("Showman v\u{E1}gott")
+            try write("", to: folder.appendingPathComponent("01_\u{151}r.mp4"))
+
+            let text = String(decoding: try Data(contentsOf: ShowLoader.importFolder(folder)), as: UTF8.self)
+
+            // Scalars, because String == treats NFC and NFD as equal.
+            #expect(Array(text.unicodeScalars) == Array(text.precomposedStringWithCanonicalMapping.unicodeScalars))
+            #expect(text.unicodeScalars.contains("\u{E1}") && text.unicodeScalars.contains("\u{151}"))
+        }
+    }
 }
 
 extension URL {

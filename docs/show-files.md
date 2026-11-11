@@ -7,7 +7,8 @@ The in-app editor writes the same format.
 
 - Two file types: `<name>.movie.json` (clips of one piece) and `<name>.concert.json` (the evening: movies, black,
   breaks, logos). The suffix decides the type. Anything else is opened as a movie.
-- UTF-8 JSON, no comments. `"format": 1` is required in both.
+- UTF-8 JSON, no comments. `"format": 1` is required in both. The app writes text precomposed (NFC), so paths
+  match the file names on Windows.
 - Paths are relative to the JSON file's folder (absolute paths work but break when the folder moves).
 - Unknown keys are ignored when reading, and dropped the first time the editor saves the file. Keep extra metadata
   (bars, audio notes, source project, approvals) in a separate file, never only in the show file.
